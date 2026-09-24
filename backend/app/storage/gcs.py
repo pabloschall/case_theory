@@ -8,8 +8,8 @@ from app.storage.base import ObjectMetadata, StorageProvider
 
 class GoogleCloudStorageProvider(StorageProvider):
     def __init__(self, settings: Settings) -> None:
-        import google.auth  # type: ignore[import-not-found]
-        from google.cloud import storage  # type: ignore[import-not-found]
+        import google.auth
+        from google.cloud import storage  # type: ignore[import-untyped]
 
         self.credentials, _ = google.auth.default(
             scopes=["https://www.googleapis.com/auth/cloud-platform"]
@@ -22,12 +22,12 @@ class GoogleCloudStorageProvider(StorageProvider):
         self.bucket = self.client.bucket(settings.gcs_bucket)
 
     def _signing_kwargs(self) -> dict[str, Any]:
-        from google.auth.transport.requests import Request  # type: ignore[import-not-found]
+        from google.auth.transport.requests import Request
 
         if not self.signing_service_account:
             raise RuntimeError("GCS_SIGNING_SERVICE_ACCOUNT is required to sign storage URLs")
         if not self.credentials.valid or not self.credentials.token:
-            self.credentials.refresh(Request())
+            self.credentials.refresh(Request())  # type: ignore[no-untyped-call]
         return {
             "service_account_email": self.signing_service_account,
             "access_token": self.credentials.token,
