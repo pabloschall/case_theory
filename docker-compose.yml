@@ -1,0 +1,99 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: eillen
+      POSTGRES_USER: eillen
+      POSTGRES_PASSWORD: eillen
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eillen -d eillen"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  gcs:
+    image: fsouza/fake-gcs-server:1.54.0
+    command: ["-scheme", "http", "-port", "4443", "-public-host", "localhost:4443", "-external-url", "http://localhost:4443"]
+    volumes:
+      - ./backend/fake-gcs-data:/data
+    ports:
+      - "4443:4443"
+
+  backend:
+    build: ./backend
+    env_file:
+      - path: .env.example
+      - path: .env
+        required: false
+    command: ["sh", "-c", "./bin/migrate-and-seed && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
+    volumes:
+      - ./backend:/app
+      - ./backend/storage-data:/app/storage-data
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      gcs:
+        condition: service_started
+
+  worker:
+    build: ./backend
+    env_file:
+      - path: .env.example
+      - path: .env
+        required: false
+    command: ["./bin/start-worker"]
+    volumes:
+      - ./backend:/app
+      - ./backend/storage-data:/app/storage-data
+    depends_on:
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      target: development
+    environment:
+      VITE_API_URL: /api/v1
+      APP_NAME: ${APP_NAME:-Game Theory}
+    volumes:
+      - ./frontend:/app
+      - frontend-modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+volumes:
+  postgres-data:
+  redis-data:
+  frontend-modules:

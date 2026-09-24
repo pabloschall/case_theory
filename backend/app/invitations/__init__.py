@@ -1,0 +1,1 @@
+"""Case collaboration invitations."""

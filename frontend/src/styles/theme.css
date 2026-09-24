@@ -1,0 +1,55 @@
+:root {
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-ui: "Inter", system-ui, sans-serif;
+
+  --bg-primary: #0B1117;
+  --bg-secondary: #101820;
+  --bg-tertiary: #162029;
+  --bg-elevated: #18232D;
+  --bg-input: #0E161D;
+
+  --text-primary: #E8EDF1;
+  --text-secondary: #AAB5BE;
+  --text-muted: #75818C;
+  --text-disabled: #505B64;
+
+  --accent-primary: #D5A64A;
+  --accent-primary-hover: #E0B65C;
+  --accent-primary-muted: rgba(213, 166, 74, 0.16);
+  --text-on-accent: #101418;
+  --accent-blue: #6A9BC4;
+  --accent-blue-muted: rgba(106, 155, 196, 0.16);
+  --accent-teal: #67A89A;
+  --accent-teal-muted: rgba(103, 168, 154, 0.14);
+  --accent-rust: #B86B56;
+  --accent-rust-muted: rgba(184, 107, 86, 0.14);
+  --accent-purple: #9A73C7;
+  --accent-purple-muted: rgba(154, 115, 199, 0.14);
+
+  --status-success: #5FAF7B;
+  --status-warning: #D7A24C;
+  --status-danger: #C95D5D;
+  --status-danger-text: #E08A8A;
+  --status-info: #6A9BC4;
+
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-default: rgba(255, 255, 255, 0.11);
+  --border-strong: rgba(255, 255, 255, 0.17);
+  --border-accent: rgba(213, 166, 74, 0.45);
+
+  --bg-primary-rgb: 11 17 23;
+  --bg-secondary-rgb: 16 24 32;
+  --bg-tertiary-rgb: 22 32 41;
+  --bg-elevated-rgb: 24 35 45;
+  --text-primary-rgb: 232 237 241;
+  --text-secondary-rgb: 170 181 190;
+  --text-muted-rgb: 117 129 140;
+  --accent-primary-rgb: 213 166 74;
+  --accent-blue-rgb: 106 155 196;
+  --accent-teal-rgb: 103 168 154;
+  --accent-rust-rgb: 184 107 86;
+  --accent-purple-rgb: 154 115 199;
+  --status-success-rgb: 95 175 123;
+  --status-warning-rgb: 215 162 76;
+  --status-danger-rgb: 201 93 93;
+}

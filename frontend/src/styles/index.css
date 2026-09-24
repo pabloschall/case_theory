@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+@import './theme.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { font-family: var(--font-ui); color: var(--text-primary); background: var(--bg-primary); font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(circle at top, rgba(35, 48, 59, .45), transparent 45%), var(--bg-primary); }
+button, input, textarea, select { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; }
+.lucide { stroke-width: 1.65; }
+
+.auth-metal-card {
+  position: relative;
+  border: 2px solid transparent;
+  border-radius: 16px;
+  background:
+    linear-gradient(rgba(16, 24, 32, .96), rgba(13, 21, 28, .98)) padding-box,
+    linear-gradient(135deg, #6f4b17 0%, #d8a94b 16%, #f0d486 30%, #9b7028 48%, #e5bc62 67%, #76501a 84%, #d7a64a 100%) border-box;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 239, 190, .06),
+    0 0 0 1px rgba(20, 12, 3, .7),
+    0 16px 42px rgba(0, 0, 0, .42),
+    0 0 24px rgba(213, 166, 74, .07);
+}
+
+@layer components {
+  .field { @apply min-h-11 w-full rounded-lg border border-default bg-input px-4 text-[15px] text-primary placeholder:text-muted transition duration-200 focus:border-accent focus:outline-none focus:ring-[3px] focus:ring-accent/10; }
+  .primary-button { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-accent px-5 text-sm font-semibold text-on-accent transition duration-200 hover:bg-accent-hover active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50; }
+  .secondary-button { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-default bg-transparent px-4 text-sm font-semibold text-primary transition duration-200 hover:border-strong hover:bg-white/[.035] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50; }
+  .ghost-button { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium text-muted transition duration-200 hover:bg-white/5 hover:text-primary; }
+  .danger-button { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-danger/35 bg-danger/10 px-4 text-sm font-semibold text-danger-text transition duration-200 hover:bg-danger/15 disabled:opacity-50; }
+  .eyebrow { @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-accent; }
+  .metadata { @apply text-xs tracking-[0.02em] text-muted; }
+  .page-title { @apply font-display text-[32px] font-semibold leading-[1.05] text-primary sm:text-[40px]; }
+  .case-title { @apply font-display text-[28px] font-semibold leading-[1.1] text-primary sm:text-[40px]; }
+  .section-title { @apply font-display text-xl font-semibold leading-tight text-primary sm:text-2xl; }
+  .surface { @apply rounded-2xl border border-subtle bg-surface shadow-card; }
+  .card, .investigation-panel { @apply rounded-xl border border-subtle bg-surface/95 shadow-card; }
+  .status-badge { @apply inline-flex items-center rounded-md border border-default px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-secondary; }
+  .ai-label { @apply inline-flex items-center gap-1.5 rounded-md border border-accent/30 bg-accent-muted px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-accent; }
+  .info-panel { @apply rounded-lg border border-info/30 bg-blue-muted p-4 text-secondary; }
+  .error-banner { @apply rounded-lg border border-danger/35 bg-danger/10 p-3 text-sm text-danger-text; }
+  .success-banner { @apply rounded-lg border border-success/35 bg-success/10 p-3 text-sm text-success; }
+  .empty-title { @apply font-display text-2xl font-semibold text-primary; }
+  .editorial-rule { @apply h-px w-10 bg-accent; }
+}

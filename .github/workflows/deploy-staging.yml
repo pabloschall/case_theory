@@ -1,0 +1,167 @@
+name: Deploy staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Git commit SHA to deploy; defaults to the selected branch SHA
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build, migrate, and deploy
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+      ARTIFACT_REPOSITORY: ${{ vars.GCP_ARTIFACT_REPOSITORY }}
+      API_SERVICE: ${{ vars.GCP_API_SERVICE }}
+      FRONTEND_SERVICE: ${{ vars.GCP_FRONTEND_SERVICE }}
+      WORKER_POOL: ${{ vars.GCP_WORKER_POOL }}
+      MIGRATION_JOB: ${{ vars.GCP_MIGRATION_JOB }}
+      STAGING_HEALTH_URL: ${{ vars.STAGING_HEALTH_URL }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
+
+      - name: Validate deployment configuration
+        env:
+          WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          DEPLOY_SERVICE_ACCOUNT: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+        run: |
+          required=(
+            PROJECT_ID REGION ARTIFACT_REPOSITORY API_SERVICE FRONTEND_SERVICE
+            WORKER_POOL MIGRATION_JOB STAGING_HEALTH_URL
+            WORKLOAD_IDENTITY_PROVIDER DEPLOY_SERVICE_ACCOUNT
+          )
+          for name in "${required[@]}"; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing GitHub staging variable: ${name}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 586.0.0"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Artifact Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGION }}-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Define immutable image names
+        id: images
+        run: |
+          deploy_sha="$(git rev-parse HEAD)"
+          registry="${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}"
+          echo "DEPLOY_SHA=${deploy_sha}" >> "$GITHUB_ENV"
+          echo "BACKEND_IMAGE=${registry}/backend:${deploy_sha}" >> "$GITHUB_ENV"
+          echo "FRONTEND_IMAGE=${registry}/frontend:${deploy_sha}" >> "$GITHUB_ENV"
+          echo "backend=${registry}/backend:${deploy_sha}" >> "$GITHUB_OUTPUT"
+          echo "frontend=${registry}/frontend:${deploy_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v7
+        with:
+          context: backend
+          push: true
+          tags: ${{ steps.images.outputs.backend }}
+          provenance: true
+          sbom: true
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v7
+        with:
+          context: frontend
+          target: production
+          push: true
+          tags: ${{ steps.images.outputs.frontend }}
+          provenance: true
+          sbom: true
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+      - name: Update and execute database migration job
+        run: |
+          gcloud run jobs update "$MIGRATION_JOB" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --image="$BACKEND_IMAGE" \
+            --quiet
+          gcloud run jobs execute "$MIGRATION_JOB" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --wait
+
+      - name: Deploy worker revision
+        run: |
+          gcloud run worker-pools deploy "$WORKER_POOL" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --image="$BACKEND_IMAGE" \
+            --quiet
+
+      - name: Deploy API revision
+        run: |
+          gcloud run services update "$API_SERVICE" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --image="$BACKEND_IMAGE" \
+            --quiet
+
+      - name: Deploy frontend revision
+        run: |
+          gcloud run services update "$FRONTEND_SERVICE" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --image="$FRONTEND_IMAGE" \
+            --quiet
+
+      - name: Smoke test staging
+        run: |
+          curl \
+            --fail \
+            --show-error \
+            --silent \
+            --retry 12 \
+            --retry-delay 5 \
+            --retry-all-errors \
+            "$STAGING_HEALTH_URL"
+
+      - name: Record deployed images
+        run: |
+          echo "### Staging deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Backend: \`$BACKEND_IMAGE\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Frontend: \`$FRONTEND_IMAGE\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Revision: \`$DEPLOY_SHA\`" >> "$GITHUB_STEP_SUMMARY"

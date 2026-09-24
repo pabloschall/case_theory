@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+export CLOUDSDK_CONFIG="$project_root/.tools/gcloud-config"
+
+if [ -z "${BROWSER:-}" ] && [ -x "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ]; then
+  export BROWSER="$project_root/scripts/open-chrome"
+fi
+
+mkdir -p "$CLOUDSDK_CONFIG"
+exec "$project_root/.tools/google-cloud-sdk/bin/gcloud" "$@"

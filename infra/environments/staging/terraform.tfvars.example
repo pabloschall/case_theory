@@ -1,0 +1,17 @@
+project_id = "case-theory"
+region     = "us-central1"
+
+project_number     = "1062432609767"
+billing_account    = "01CBFB-A532AA-16BDDE"
+monthly_budget_usd = 50
+
+# Add the final staging HTTPS origin before enabling browser uploads.
+frontend_origin = ""
+
+# Deliberately disabled in the first foundation plan because these resources
+# create the main recurring staging cost.
+enable_cloud_sql = false
+enable_redis     = false
+
+cloud_sql_tier       = "db-g1-small"
+redis_memory_size_gb = 1

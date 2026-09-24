@@ -1,0 +1,159 @@
+name: Terraform staging
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/terraform-staging.yml"
+      - "infra/**"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply the reviewed plan after environment approval
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-staging
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION }}
+  TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
+  TF_VAR_region: ${{ vars.GCP_REGION }}
+  TF_VAR_frontend_origin: ${{ vars.STAGING_FRONTEND_ORIGIN }}
+  TF_VAR_enable_cloud_sql: "true"
+  TF_VAR_enable_redis: "true"
+
+jobs:
+  plan:
+    name: Plan staging infrastructure
+    if: ${{ github.event_name == 'workflow_dispatch' || (vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: ${{ steps.plan-name.outputs.value }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Validate configuration variables
+        env:
+          WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          TERRAFORM_PLAN_SERVICE_ACCOUNT: ${{ vars.GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT }}
+        run: |
+          required=(
+            PROJECT_ID REGION WORKLOAD_IDENTITY_PROVIDER TERRAFORM_PLAN_SERVICE_ACCOUNT
+          )
+          for name in "${required[@]}"; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing GitHub repository variable: ${name}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.14.7
+          terraform_wrapper: false
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive infra
+
+      - name: Initialize staging state
+        run: terraform -chdir=infra/environments/staging init -input=false
+
+      - name: Validate staging configuration
+        run: terraform -chdir=infra/environments/staging validate
+
+      - name: Create staging plan
+        run: |
+          terraform -chdir=infra/environments/staging plan \
+            -input=false \
+            -lock=false \
+            -out=staging.tfplan
+          terraform -chdir=infra/environments/staging show \
+            -no-color staging.tfplan > infra/environments/staging/staging-plan.txt
+
+      - name: Add plan to workflow summary
+        run: |
+          echo "### Terraform staging plan" >> "$GITHUB_STEP_SUMMARY"
+          echo '```terraform' >> "$GITHUB_STEP_SUMMARY"
+          cat infra/environments/staging/staging-plan.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Name plan artifact
+        id: plan-name
+        run: echo "value=staging-tfplan-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload reviewed plan
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.plan-name.outputs.value }}
+          path: infra/environments/staging/staging.tfplan
+          if-no-files-found: error
+          retention-days: 5
+
+  apply:
+    name: Apply staging infrastructure
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.apply }}
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: staging-infrastructure
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Validate apply identity
+        env:
+          TERRAFORM_APPLY_SERVICE_ACCOUNT: ${{ vars.GCP_TERRAFORM_APPLY_SERVICE_ACCOUNT }}
+        run: |
+          if [[ -z "$TERRAFORM_APPLY_SERVICE_ACCOUNT" ]]; then
+            echo "Missing GitHub staging-infrastructure variable: GCP_TERRAFORM_APPLY_SERVICE_ACCOUNT" >&2
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_TERRAFORM_APPLY_SERVICE_ACCOUNT }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.14.7
+          terraform_wrapper: false
+
+      - name: Initialize staging state
+        run: terraform -chdir=infra/environments/staging init -input=false
+
+      - name: Download reviewed plan
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ needs.plan.outputs.artifact-name }}
+          path: infra/environments/staging
+
+      - name: Apply reviewed plan
+        run: terraform -chdir=infra/environments/staging apply -input=false staging.tfplan
+
+      - name: Record infrastructure deployment
+        run: |
+          echo "### Staging infrastructure applied" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Project: \`$PROJECT_ID\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Region: \`$REGION\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Cloud SQL: enabled" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Memorystore Redis: enabled" >> "$GITHUB_STEP_SUMMARY"

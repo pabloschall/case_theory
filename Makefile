@@ -1,0 +1,44 @@
+TERRAFORM ?= ./scripts/terraform
+
+.PHONY: dev test test-backend test-frontend migrate migration seed lint format typecheck terraform-fmt terraform-validate
+
+dev:
+	docker compose up --build
+
+test: test-backend test-frontend
+
+test-backend:
+	cd backend && pytest
+
+test-frontend:
+	cd frontend && npm test
+
+migrate:
+	cd backend && alembic upgrade head
+
+migration:
+	cd backend && alembic revision --autogenerate -m "$(name)"
+
+seed:
+	cd backend && python -m app.db.seed
+
+lint:
+	cd backend && ruff check .
+	cd frontend && npm run lint
+
+format:
+	cd backend && ruff format .
+	cd frontend && npm run format
+
+typecheck:
+	cd backend && mypy app
+	cd frontend && npm run typecheck
+
+terraform-fmt:
+	$(TERRAFORM) fmt -recursive infra
+
+terraform-validate:
+	$(TERRAFORM) -chdir=infra/bootstrap init -backend=false
+	$(TERRAFORM) -chdir=infra/bootstrap validate
+	$(TERRAFORM) -chdir=infra/environments/staging init -backend=false
+	$(TERRAFORM) -chdir=infra/environments/staging validate

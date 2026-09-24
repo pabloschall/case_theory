@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+adc_file="$project_root/.tools/gcloud-config/application_default_credentials.json"
+
+if [ -f "$adc_file" ]; then
+  export GOOGLE_APPLICATION_CREDENTIALS="$adc_file"
+fi
+
+exec "$project_root/.tools/bin/terraform" "$@"

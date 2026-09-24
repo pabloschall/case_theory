@@ -1,0 +1,7 @@
+output "repository_id" {
+  value = google_artifact_registry_repository.docker.id
+}
+
+output "docker_repository" {
+  value = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker.repository_id}"
+}
