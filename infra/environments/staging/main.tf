@@ -138,7 +138,6 @@ module "github_actions_identity" {
 
   project_id                     = var.project_id
   project_number                 = var.project_number
-  billing_account                = var.billing_account
   state_bucket_name              = "${var.project_id}-tf-state"
   github_repository              = var.github_repository
   github_repository_id           = var.github_repository_id

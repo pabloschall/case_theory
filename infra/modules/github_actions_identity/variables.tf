@@ -8,11 +8,6 @@ variable "project_number" {
   type        = string
 }
 
-variable "billing_account" {
-  description = "Bare billing account ID managed by Terraform."
-  type        = string
-}
-
 variable "state_bucket_name" {
   description = "Terraform state bucket used by GitHub Actions."
   type        = string

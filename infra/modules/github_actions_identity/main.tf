@@ -117,12 +117,6 @@ resource "google_storage_bucket_iam_member" "plan_state_reader" {
   member = "serviceAccount:${google_service_account.github["plan"].email}"
 }
 
-resource "google_billing_account_iam_member" "plan_billing_viewer" {
-  billing_account_id = var.billing_account
-  role               = "roles/billing.viewer"
-  member             = "serviceAccount:${google_service_account.github["plan"].email}"
-}
-
 resource "google_project_iam_member" "apply" {
   for_each = local.apply_project_roles
 
@@ -135,12 +129,6 @@ resource "google_storage_bucket_iam_member" "apply_state_writer" {
   bucket = var.state_bucket_name
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.github["apply"].email}"
-}
-
-resource "google_billing_account_iam_member" "apply_budget_manager" {
-  billing_account_id = var.billing_account
-  role               = "roles/billing.costsManager"
-  member             = "serviceAccount:${google_service_account.github["apply"].email}"
 }
 
 resource "google_project_iam_member" "deploy" {
