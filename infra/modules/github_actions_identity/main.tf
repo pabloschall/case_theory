@@ -53,11 +53,12 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   display_name                       = "Case Theory GitHub repository"
 
   attribute_mapping = {
-    "google.subject"             = "assertion.sub"
-    "attribute.actor"            = "assertion.actor"
-    "attribute.repository"       = "assertion.repository"
-    "attribute.repository_id"    = "assertion.repository_id"
-    "attribute.repository_owner" = "assertion.repository_owner"
+    "google.subject"                   = "assertion.sub"
+    "attribute.actor"                  = "assertion.actor"
+    "attribute.deployment_environment" = "assertion.repository + ':' + assertion.sub.extract(':environment:{environment}')"
+    "attribute.repository"             = "assertion.repository"
+    "attribute.repository_id"          = "assertion.repository_id"
+    "attribute.repository_owner"       = "assertion.repository_owner"
   }
 
   attribute_condition = var.github_repository_id != "" ? (
@@ -86,13 +87,13 @@ resource "google_service_account_iam_member" "plan_federation" {
 resource "google_service_account_iam_member" "apply_federation" {
   service_account_id = google_service_account.github["apply"].name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principal://iam.googleapis.com/${local.pool_name}/subject/repo:${var.github_repository}:environment:staging-infrastructure"
+  member             = "principalSet://iam.googleapis.com/${local.pool_name}/attribute.deployment_environment/${var.github_repository}:staging-infrastructure"
 }
 
 resource "google_service_account_iam_member" "deploy_federation" {
   service_account_id = google_service_account.github["deploy"].name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principal://iam.googleapis.com/${local.pool_name}/subject/repo:${var.github_repository}:environment:staging"
+  member             = "principalSet://iam.googleapis.com/${local.pool_name}/attribute.deployment_environment/${var.github_repository}:staging"
 }
 
 resource "google_project_iam_member" "plan_viewer" {
