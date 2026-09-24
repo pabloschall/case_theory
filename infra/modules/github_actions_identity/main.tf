@@ -97,7 +97,11 @@ resource "google_service_account_iam_member" "deploy_federation" {
 
 resource "google_project_iam_member" "plan_viewer" {
   for_each = toset([
+    "roles/artifactregistry.reader",
     "roles/iam.securityReviewer",
+    "roles/iam.workloadIdentityPoolViewer",
+    "roles/serviceusage.serviceUsageConsumer",
+    "roles/storage.bucketViewer",
     "roles/viewer",
   ])
 
