@@ -11,7 +11,6 @@ import type {DiscussionComment, DiscussionThread} from '../../types'
 import {EvidenceCard} from '../evidence/EvidenceCard'
 import {EvidencePicker} from '../evidence/EvidencePicker'
 import {LinkedPeople, PersonPicker} from '../people/PersonPicker'
-import {UpgradeButton} from '../../components/ui/Visual'
 import {ReportButton} from '../moderation/ReportButton'
 
 const threadTypes = {
@@ -44,7 +43,11 @@ const threadTypes = {
 const threadSchema = z.object({
     thread_type: z.enum(['question', 'theory', 'evidence', 'dispute']),
     title: z.string().trim().min(3, 'Add a short title').max(140),
-    body: z.string().trim().min(1, 'Add the opening text').max(5000),
+    body: z.string().trim().max(5000),
+    ai_search: z.boolean(),
+}).refine((data) => data.ai_search || data.body.length > 0, {
+    message: 'Add the opening text',
+    path: ['body'],
 })
 const commentSchema = z.object({body: z.string().trim().min(1, 'Add a comment').max(3000)})
 type ThreadForm = z.infer<typeof threadSchema>
@@ -68,9 +71,10 @@ export function DiscussionPanel({caseId, readOnly = false}: { caseId: string; re
     const selected = threads.find((thread) => thread.id === selectedId)
     const threadForm = useForm<ThreadForm>({
         resolver: zodResolver(threadSchema),
-        defaultValues: {thread_type: 'question'}
+        defaultValues: {thread_type: 'question', title: '', body: '', ai_search: false}
     })
     const commentForm = useForm<CommentForm>({resolver: zodResolver(commentSchema)})
+    const aiSearch = threadForm.watch('ai_search')
     const refresh = () => queryClient.invalidateQueries({queryKey: ['case', caseId, 'discussions']})
     const createThread = useMutation({
         mutationFn: (data: ThreadForm) => api.createDiscussionThread(caseId, {
@@ -79,7 +83,7 @@ export function DiscussionPanel({caseId, readOnly = false}: { caseId: string; re
             person_ids: personIds
         }),
         onSuccess: async (thread) => {
-            threadForm.reset({thread_type: 'question', title: '', body: ''});
+            threadForm.reset({thread_type: 'question', title: '', body: '', ai_search: false});
             setEvidenceIds([]);
             setPersonIds([]);
             setCreating(false);
@@ -149,7 +153,7 @@ export function DiscussionPanel({caseId, readOnly = false}: { caseId: string; re
                         className="section-title">Discussion threads</h2></div>
                     <p className="mt-2 max-w-2xl text-[15px] text-secondary">Keep each topic focused. Claims and
                         theories should identify their supporting sources.</p></div>
-                {readOnly ? <UpgradeButton description="Creating threads, commenting, and reacting are available on the Investigator plan.">New thread</UpgradeButton> : <button type="button" onClick={() => setCreating((value) => !value)}
+                {readOnly ? <Link to="/login" className="secondary-button shrink-0 text-xs">Sign in to contribute</Link> : <button type="button" onClick={() => setCreating((value) => !value)}
                         className="secondary-button shrink-0 text-xs"><Plus
                     size={16}/>{creating ? 'Close' : 'New thread'}</button>}
             </div>
@@ -165,7 +169,7 @@ export function DiscussionPanel({caseId, readOnly = false}: { caseId: string; re
                            className="card mt-5 border-default p-5 sm:p-6">
             <div className="grid gap-5 sm:grid-cols-[180px_1fr]">
                 <label className="block text-sm font-semibold text-primary">Thread type<select
-                    className="field mt-2" {...threadForm.register('thread_type')}>
+                    disabled={aiSearch} className="field mt-2 disabled:cursor-not-allowed disabled:opacity-60" {...threadForm.register('thread_type')}>
                     <option value="question">Open question</option>
                     <option value="theory">Theory</option>
                     <option value="evidence">Evidence-backed</option>
@@ -176,19 +180,25 @@ export function DiscussionPanel({caseId, readOnly = false}: { caseId: string; re
                     <span className="mt-1 block text-xs text-danger">{threadForm.formState.errors.title.message}</span>}
                 </label>
             </div>
-            <label className="mt-5 block text-sm font-semibold text-primary">Opening text<textarea
+            <label className="mt-5 flex cursor-pointer gap-3 rounded-xl border border-accent/25 bg-accent-muted/40 p-4">
+                <input type="checkbox" className="mt-1 h-4 w-4 accent-current" {...threadForm.register('ai_search')}/>
+                <span><span className="flex items-center gap-2 text-sm font-semibold text-primary"><Sparkles size={15} className="text-accent"/>Research this theory with AI</span>
+                    <span className="mt-1 block text-xs leading-5 text-secondary">AI will use the case title, current summary, and thread title to search public sources. The result explores the theory and does not claim it is proven.</span></span>
+            </label>
+            {!aiSearch && <label className="mt-5 block text-sm font-semibold text-primary">Opening text<textarea
                 className="field mt-2 min-h-32 resize-y py-3"
                 placeholder="Explain the topic, distinguish facts from theory, and include sources when possible." {...threadForm.register('body')}/>{threadForm.formState.errors.body &&
                 <span className="mt-1 block text-xs text-danger">{threadForm.formState.errors.body.message}</span>}
-            </label>
+            </label>}
+            {aiSearch && <p className="mt-4 rounded-lg border border-warning/25 bg-warning/10 px-4 py-3 text-xs leading-5 text-secondary"><strong className="text-warning">Unproven theory.</strong> Search results may provide context for or against the idea. They do not prove the allegation.</p>}
             <div className="mt-5 grid gap-3 md:grid-cols-2"><EvidencePicker caseId={caseId} selected={evidenceIds}
                                                                             onToggle={(id) => setEvidenceIds((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id])}/><PersonPicker
                 caseId={caseId} selected={personIds}
                 onToggle={(id) => setPersonIds((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id])}/>
             </div>
             <MutationError error={createThread.error}/>
-            <button disabled={createThread.isPending} className="primary-button mt-5 text-xs"><MessageCircle
-                size={15}/>{createThread.isPending ? 'Creating…' : 'Create thread'}</button>
+            <button disabled={createThread.isPending} className="primary-button mt-5 text-xs">{aiSearch ? <Sparkles
+                size={15}/> : <MessageCircle size={15}/>} {createThread.isPending ? (aiSearch ? 'Researching…' : 'Creating…') : (aiSearch ? 'Research and create thread' : 'Create thread')}</button>
         </form>}
 
         {threads.length ?
@@ -213,7 +223,7 @@ function ThreadCard({thread, onOpen, onVote, voting, readOnly}: { thread: Discus
             <div className="flex flex-wrap gap-2"><span
                 className={`inline-flex rounded-md border px-2 py-1 text-[10px] font-bold uppercase tracking-[.11em] ${style.badge}`}>{style.label}</span>{thread.ai_generated &&
                 <span className="ai-label">AI suggested</span>}</div>
-            <div className="flex shrink-0 items-center gap-2"><button type="button" onClick={onVote} disabled={readOnly || voting} title={readOnly ? 'Investigator access is required to vote. Votes rank topics and do not verify claims.' : 'Vote for this discussion topic. Votes do not verify claims.'} className={`inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-[10px] font-semibold transition ${thread.voted_by_me ? 'border-accent bg-accent-muted text-accent' : 'border-default bg-background/35 text-secondary hover:border-accent/45 hover:text-accent'}`}><ChevronUp size={13}/>{thread.vote_count}</button><span
+            <div className="flex shrink-0 items-center gap-2"><button type="button" onClick={onVote} disabled={readOnly || voting} title={readOnly ? 'Sign in to vote. Votes rank topics and do not verify claims.' : 'Vote for this discussion topic. Votes do not verify claims.'} className={`inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-[10px] font-semibold transition ${thread.voted_by_me ? 'border-accent bg-accent-muted text-accent' : 'border-default bg-background/35 text-secondary hover:border-accent/45 hover:text-accent'}`}><ChevronUp size={13}/>{thread.vote_count}</button><span
                 className="inline-flex items-center gap-1.5 rounded-md border border-default bg-background/35 px-2 py-1 text-[10px] font-semibold text-secondary"><MessageCircle
                 size={12}/>{thread.comments.length} {thread.comments.length === 1 ? 'comment' : 'comments'}</span></div></div>
         <button type="button" onClick={onOpen} className="mt-4 flex w-full items-start gap-4 text-left">
@@ -283,7 +293,7 @@ function ThreadView({caseId, thread, onBack, commentForm, submitComment, comment
         </div>
         <div className="mt-4 space-y-3 border-l border-default pl-3 sm:pl-5">{thread.comments.map((comment) =>
             <CommentCard key={comment.id} comment={comment} readOnly={readOnly} onReact={(emoji) => onReact(comment.id, emoji)}/>)}</div>
-        {readOnly ? <div className="mt-5"><UpgradeButton className="secondary-button w-full text-xs" description="Commenting and reactions are available on the Investigator plan.">Join this discussion</UpgradeButton></div> : <form onSubmit={submitComment} className="card mt-5 border-default p-5"><label
+        {readOnly ? <div className="mt-5"><Link to="/login" className="secondary-button w-full text-xs">Sign in to join this discussion</Link></div> : <form onSubmit={submitComment} className="card mt-5 border-default p-5"><label
             className="block text-sm font-semibold text-primary">Add a comment<textarea
             className="field mt-2 min-h-28 resize-y py-3"
             placeholder="Add information, a question, or a sourced correction…" {...commentForm.register('body')}/>{commentForm.formState.errors.body &&
@@ -306,7 +316,7 @@ function CommentCard({comment, onReact, readOnly}: { comment: DiscussionComment;
         <div className="mt-4 flex flex-wrap gap-2 border-t border-subtle pt-3"
              aria-label="Comment reactions">{reactionOptions.map((emoji) => {
             const reaction = comment.reactions.find((item) => item.emoji === emoji);
-            return <button type="button" key={emoji} disabled={readOnly} title={readOnly ? 'Investigator plan required' : undefined} onClick={() => onReact(emoji)} aria-label={`React ${emoji}`}
+            return <button type="button" key={emoji} disabled={readOnly} title={readOnly ? 'Sign in to react' : undefined} onClick={() => onReact(emoji)} aria-label={`React ${emoji}`}
                            className={`min-h-9 rounded-md border px-2.5 text-sm transition duration-200 ${reaction?.reacted_by_me ? 'border-accent bg-accent-muted' : 'border-subtle bg-background/30 hover:border-default hover:bg-white/[.035]'}`}>{emoji}{reaction &&
                 <span className="ml-1 text-[10px] text-muted">{reaction.count}</span>}</button>
         })}</div>

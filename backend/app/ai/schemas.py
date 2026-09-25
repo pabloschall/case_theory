@@ -90,3 +90,8 @@ class ResearchedSource(BaseModel):
 class WebResearchResult(BaseModel):
     dossier: str
     sources: list[ResearchedSource] = Field(min_length=1)
+
+
+class ThreadResearchResult(BaseModel):
+    body: str = Field(min_length=1, max_length=4800)
+    sources: list[ResearchedSource] = Field(min_length=1, max_length=12)

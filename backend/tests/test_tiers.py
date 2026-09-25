@@ -78,6 +78,16 @@ async def test_free_tier_manual_public_cases_are_unlimited_and_ai_is_weekly_limi
     )
     assert timeline.status_code == 201
     assert timeline.json()["title"] == "Free timeline event"
+    discussion = await client.post(
+        f"/api/v1/cases/{case_id}/discussions",
+        headers={"X-CSRF-Token": token},
+        json={
+            "title": "Free account theory",
+            "body": "Free accounts can participate in case discussions.",
+            "thread_type": "theory",
+        },
+    )
+    assert discussion.status_code == 201
     assert (await client.get(f"/api/v1/cases/{case_id}/people")).status_code == 200
     assert (await client.get("/api/v1/messages/conversations")).status_code == 200
     own_notes = await client.get(f"/api/v1/cases/{case_id}/notes")
