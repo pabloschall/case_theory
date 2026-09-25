@@ -1,6 +1,7 @@
 import {useState, type FormEvent} from 'react'
-import {ExternalLink, Send, Sparkles} from 'lucide-react'
+import {ExternalLink, NotebookPen, Send, Sparkles} from 'lucide-react'
 import {api} from '../../services/api'
+import {queryClient} from '../../lib/query'
 
 type Message = {
     role: 'user' | 'assistant'
@@ -13,6 +14,8 @@ export function ResearcherChat({caseId, title}: {caseId: string; title: string})
     const [draft, setDraft] = useState('')
     const [pending, setPending] = useState(false)
     const [error, setError] = useState('')
+    const [savingIndex, setSavingIndex] = useState<number | null>(null)
+    const [savedIndexes, setSavedIndexes] = useState<Set<number>>(new Set())
 
     async function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
@@ -35,9 +38,31 @@ export function ResearcherChat({caseId, title}: {caseId: string; title: string})
         }
     }
 
+    async function addToNotes(message: Message, index: number) {
+        if (savingIndex !== null || savedIndexes.has(index)) return
+        const question = messages[index - 1]?.role === 'user' ? messages[index - 1].content : 'Research answer'
+        const sourceList = message.sources?.length
+            ? `\n\nSources\n${message.sources.map((source) => `- ${source.title}: ${source.url}`).join('\n')}`
+            : ''
+        setSavingIndex(index)
+        setError('')
+        try {
+            await api.createNotebookNote(caseId, {
+                title: `Research: ${question}`.slice(0, 180),
+                body: `${message.content}${sourceList}`,
+            })
+            setSavedIndexes((current) => new Set(current).add(index))
+            await queryClient.invalidateQueries({queryKey: ['case', caseId, 'notebook-notes']})
+        } catch (failure) {
+            setError(failure instanceof Error ? failure.message : 'The research could not be added to My Notes.')
+        } finally {
+            setSavingIndex(null)
+        }
+    }
+
     return <section className="card mx-auto flex min-h-[60vh] max-w-4xl flex-col overflow-hidden">
         <div className="border-b border-subtle p-5 sm:p-6">
-            <h2 className="section-title flex items-center gap-2"><Sparkles size={19} className="text-accent"/> Chat Researcher</h2>
+            <h2 className="section-title flex items-center gap-2"><Sparkles size={19} className="text-accent"/> Researcher</h2>
             <p className="mt-2 text-sm leading-6 text-secondary">Ask about {title}. The researcher uses this case’s title and overview, searches public web sources, and links the sources it finds.</p>
         </div>
         <div className="flex-1 space-y-5 p-5 sm:p-6" aria-live="polite">
@@ -47,7 +72,7 @@ export function ResearcherChat({caseId, title}: {caseId: string; title: string})
                 {message.sources && message.sources.length > 0 && <div className="mt-4 border-t border-subtle pt-3">
                     <p className="eyebrow">Web sources</p>
                     <ul className="mt-2 space-y-2">{message.sources.map((source) => <li key={source.url}><a className="inline-flex max-w-full items-center gap-1 text-xs text-blue hover:text-primary" href={source.url} target="_blank" rel="noopener noreferrer"><span className="truncate">{source.title}</span><ExternalLink size={12} className="shrink-0"/></a></li>)}</ul>
-                </div>}
+                </div>}{message.role === 'assistant' && <button type="button" onClick={() => addToNotes(message, index)} disabled={savingIndex !== null || savedIndexes.has(index)} className="secondary-button mt-4 min-h-9 w-fit px-3 text-[11px]"><NotebookPen size={14}/>{savedIndexes.has(index) ? 'Saved to My Notes' : savingIndex === index ? 'Saving…' : 'Add to My Notes'}</button>}
             </div>)}
             {pending && <p className="flex items-center gap-2 text-sm text-muted"><Sparkles size={14} className="animate-pulse"/> Searching public sources…</p>}
         </div>

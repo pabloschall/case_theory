@@ -49,9 +49,7 @@ async def search_cases(
     counts = await service.discussion_counts([case.id for case in cases])
     user_id = user.id if user is not None else None
     following_ids = (
-        await service.following_case_ids([case.id for case in cases], user.id)
-        if user is not None
-        else set()
+        await service.following_case_ids([case.id for case in cases], user.id) if user is not None else set()
     )
     items = [
         to_list_item(
@@ -81,15 +79,11 @@ async def following_cases(
     service = CaseService(db)
     cases = await service.following(user.id)
     counts = await service.discussion_counts([case.id for case in cases])
-    return [
-        to_list_item(case, user.id, counts[case.id], is_following=True) for case in cases
-    ]
+    return [to_list_item(case, user.id, counts[case.id], is_following=True) for case in cases]
 
 
 @router.get("/mine", response_model=list[CaseListItem])
-async def my_cases(
-    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
-) -> list[CaseListItem]:
+async def my_cases(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> list[CaseListItem]:
     service = CaseService(db)
     cases = await service.mine(user.id)
     counts = await service.discussion_counts([case.id for case in cases])
@@ -119,9 +113,7 @@ async def create_case(
     case, job = await CaseService(db).create(data, user)
     if job is not None:
         generate_case.delay(str(case.id), str(job.id))
-    include_evidence = await PermissionService(db).allows(
-        user.id, "evidence.read", is_admin=user.is_admin
-    )
+    include_evidence = await PermissionService(db).allows(user.id, "evidence.read", is_admin=user.is_admin)
     return to_case_read(
         await CaseService(db).get(case.id),
         user.id,
@@ -141,9 +133,7 @@ async def get_case(
     case = await service.get(case_id)
     is_following = await service.is_following(case_id, user.id) if user is not None else False
     include_evidence = (
-        await PermissionService(db).allows(
-            user.id, "evidence.read", is_admin=user.is_admin
-        )
+        await PermissionService(db).allows(user.id, "evidence.read", is_admin=user.is_admin)
         if user is not None
         else False
     )
@@ -248,19 +238,26 @@ async def research_case(
     dependencies=[
         Depends(verify_csrf),
         Depends(require_case_access),
-        Depends(require_permission("ai.research", required_tier=3)),
+        Depends(require_permission("ai.research", required_tier=2)),
     ],
 )
 async def research_chat(
     case_id: uuid.UUID,
     data: ChatResearchRequest,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ChatResearchResponse:
+    context = await PermissionService(db).for_user(user.id, is_admin=user.is_admin)
+    if not user.is_admin and context.tier_level < 2:
+        raise AppError(
+            403,
+            "researcher_upgrade_required",
+            "Researcher requires a paid plan",
+            {"required_tier": 2},
+        )
     case = await CaseService(db).get(case_id)
     summary = await db.scalar(
-        select(CaseSummary.body).where(
-            CaseSummary.case_id == case_id, CaseSummary.is_current.is_(True)
-        )
+        select(CaseSummary.body).where(CaseSummary.case_id == case_id, CaseSummary.is_current.is_(True))
     )
     try:
         return await OpenAIChatResearcher(get_settings()).answer(
@@ -270,6 +267,4 @@ async def research_chat(
             history=data.history,
         )
     except (OpenAIError, RuntimeError) as exc:
-        raise AppError(
-            503, "ai_research_unavailable", "Research chat is unavailable. Please try again later."
-        ) from exc
+        raise AppError(503, "ai_research_unavailable", "Researcher is unavailable. Please try again later.") from exc

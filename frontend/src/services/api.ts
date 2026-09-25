@@ -90,7 +90,7 @@ export const api = {
     if (cursor) params.set('cursor', cursor)
     return request<DiscussionThreadPage>(`/cases/${caseId}/discussions?${params.toString()}`)
   },
-  createDiscussionThread: (caseId: string, data: { title: string; body?: string; thread_type: DiscussionThread['thread_type']; ai_search?: boolean; evidence_ids?: string[]; person_ids?: string[] }) => request<DiscussionThread>(`/cases/${caseId}/discussions`, { method: 'POST', body: JSON.stringify(data) }),
+  createDiscussionThread: (caseId: string, data: { title: string; body: string; thread_type: DiscussionThread['thread_type']; evidence_ids?: string[]; person_ids?: string[] }) => request<DiscussionThread>(`/cases/${caseId}/discussions`, { method: 'POST', body: JSON.stringify(data) }),
   toggleDiscussionVote: (caseId: string, threadId: string) => request<{ vote_count: number; voted_by_me: boolean }>(`/cases/${caseId}/discussions/${threadId}/vote`, { method: 'POST' }),
   addDiscussionComment: (caseId: string, threadId: string, data: { body: string }) => request<DiscussionThread>(`/cases/${caseId}/discussions/${threadId}/comments`, { method: 'POST', body: JSON.stringify(data) }),
   toggleDiscussionReaction: (caseId: string, threadId: string, commentId: string, emoji: string) => request<DiscussionThread>(`/cases/${caseId}/discussions/${threadId}/comments/${commentId}/reactions`, { method: 'POST', body: JSON.stringify({ emoji }) }),

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.cases.schemas import SourceRead
 from app.evidence.schemas import EvidenceRead
@@ -15,33 +15,18 @@ ThreadType = Literal["question", "theory", "evidence", "dispute"]
 class ThreadCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: str = Field(min_length=3, max_length=140)
-    body: str | None = Field(default=None, max_length=5000)
+    body: str = Field(min_length=1, max_length=5000)
     thread_type: ThreadType = "question"
-    ai_search: bool = False
     evidence_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
     person_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
 
-    @field_validator("title")
+    @field_validator("title", "body")
     @classmethod
     def strip_text(cls, value: str) -> str:
         normalized = value.strip()
         if not normalized:
             raise ValueError("Text cannot be blank")
         return normalized
-
-    @field_validator("body")
-    @classmethod
-    def strip_optional_text(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        normalized = value.strip()
-        return normalized or None
-
-    @model_validator(mode="after")
-    def require_manual_body(self) -> "ThreadCreate":
-        if not self.ai_search and self.body is None:
-            raise ValueError("Opening text is required when AI search is off")
-        return self
 
 
 class CommentCreate(BaseModel):

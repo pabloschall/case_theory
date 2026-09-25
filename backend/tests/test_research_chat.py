@@ -1,10 +1,15 @@
+import uuid
+
 import pytest
 from httpx import AsyncClient
 from pytest import MonkeyPatch
+from sqlalchemy import select
 
 from app.ai.chat_research import ChatResearchResponse
 from app.ai.schemas import ResearchedSource
 from app.cases import routes as case_routes
+from app.db.session import SessionFactory
+from app.subscriptions.models import SubscriptionPlan, UserSubscription
 
 pytestmark = pytest.mark.usefixtures("paid_signups")
 
@@ -30,7 +35,7 @@ async def test_research_chat_uses_stored_case_context_and_returns_sources(
     monkeypatch.setattr(case_routes, "OpenAIChatResearcher", StubResearcher)
     token = (await client.get("/api/v1/auth/csrf")).json()["csrf_token"]
     headers = {"X-CSRF-Token": token}
-    await client.post(
+    registration = await client.post(
         "/api/v1/auth/register",
         headers=headers,
         json={
@@ -43,6 +48,8 @@ async def test_research_chat_uses_stored_case_context_and_returns_sources(
             "accept_community_standards": True,
         },
     )
+    assert registration.status_code == 201
+    user = (await client.get("/api/v1/users/me")).json()
     overview = "A carefully documented public case with several questions still unresolved."
     case = await client.post(
         "/api/v1/cases",
@@ -70,3 +77,25 @@ async def test_research_chat_uses_stored_case_context_and_returns_sources(
     assert StubResearcher.calls[0]["case_summary"] == overview
     assert StubResearcher.calls[0]["message"] == "What do officials say?"
     assert StubResearcher.calls[0]["history"][0].content == "When did this happen?"
+
+    async with SessionFactory() as db:
+        free_plan = await db.scalar(select(SubscriptionPlan).where(SubscriptionPlan.code == "free"))
+        subscription = await db.scalar(
+            select(UserSubscription).where(
+                UserSubscription.user_id == uuid.UUID(user["id"]),
+                UserSubscription.is_active.is_(True),
+            )
+        )
+        assert free_plan is not None
+        assert subscription is not None
+        subscription.plan_id = free_plan.id
+        await db.commit()
+
+    locked = await client.post(
+        f"/api/v1/cases/{case_id}/research-chat",
+        headers=headers,
+        json={"message": "Can a free account search?", "history": []},
+    )
+    assert locked.status_code == 403
+    assert locked.json()["error"]["code"] == "researcher_upgrade_required"
+    assert len(StubResearcher.calls) == 1

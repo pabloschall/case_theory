@@ -43,11 +43,7 @@ const threadTypes = {
 const threadSchema = z.object({
     thread_type: z.enum(['question', 'theory', 'evidence', 'dispute']),
     title: z.string().trim().min(3, 'Add a short title').max(140),
-    body: z.string().trim().max(5000),
-    ai_search: z.boolean(),
-}).refine((data) => data.ai_search || data.body.length > 0, {
-    message: 'Add the opening text',
-    path: ['body'],
+    body: z.string().trim().min(1, 'Add the opening text').max(5000),
 })
 const commentSchema = z.object({body: z.string().trim().min(1, 'Add a comment').max(3000)})
 type ThreadForm = z.infer<typeof threadSchema>
@@ -71,10 +67,9 @@ export function DiscussionPanel({caseId, readOnly = false}: { caseId: string; re
     const selected = threads.find((thread) => thread.id === selectedId)
     const threadForm = useForm<ThreadForm>({
         resolver: zodResolver(threadSchema),
-        defaultValues: {thread_type: 'question', title: '', body: '', ai_search: false}
+        defaultValues: {thread_type: 'question', title: '', body: ''}
     })
     const commentForm = useForm<CommentForm>({resolver: zodResolver(commentSchema)})
-    const aiSearch = threadForm.watch('ai_search')
     const refresh = () => queryClient.invalidateQueries({queryKey: ['case', caseId, 'discussions']})
     const createThread = useMutation({
         mutationFn: (data: ThreadForm) => api.createDiscussionThread(caseId, {
@@ -83,7 +78,7 @@ export function DiscussionPanel({caseId, readOnly = false}: { caseId: string; re
             person_ids: personIds
         }),
         onSuccess: async (thread) => {
-            threadForm.reset({thread_type: 'question', title: '', body: '', ai_search: false});
+            threadForm.reset({thread_type: 'question', title: '', body: ''});
             setEvidenceIds([]);
             setPersonIds([]);
             setCreating(false);
@@ -169,7 +164,7 @@ export function DiscussionPanel({caseId, readOnly = false}: { caseId: string; re
                            className="card mt-5 border-default p-5 sm:p-6">
             <div className="grid gap-5 sm:grid-cols-[180px_1fr]">
                 <label className="block text-sm font-semibold text-primary">Thread type<select
-                    disabled={aiSearch} className="field mt-2 disabled:cursor-not-allowed disabled:opacity-60" {...threadForm.register('thread_type')}>
+                    className="field mt-2" {...threadForm.register('thread_type')}>
                     <option value="question">Open question</option>
                     <option value="theory">Theory</option>
                     <option value="evidence">Evidence-backed</option>
@@ -180,25 +175,18 @@ export function DiscussionPanel({caseId, readOnly = false}: { caseId: string; re
                     <span className="mt-1 block text-xs text-danger">{threadForm.formState.errors.title.message}</span>}
                 </label>
             </div>
-            <label className="mt-5 flex cursor-pointer gap-3 rounded-xl border border-accent/25 bg-accent-muted/40 p-4">
-                <input type="checkbox" className="mt-1 h-4 w-4 accent-current" {...threadForm.register('ai_search')}/>
-                <span><span className="flex items-center gap-2 text-sm font-semibold text-primary"><Sparkles size={15} className="text-accent"/>Research this theory with AI</span>
-                    <span className="mt-1 block text-xs leading-5 text-secondary">AI will use the case title, current summary, and thread title to search public sources. The result explores the theory and does not claim it is proven.</span></span>
-            </label>
-            {!aiSearch && <label className="mt-5 block text-sm font-semibold text-primary">Opening text<textarea
+            <label className="mt-5 block text-sm font-semibold text-primary">Opening text<textarea
                 className="field mt-2 min-h-32 resize-y py-3"
                 placeholder="Explain the topic, distinguish facts from theory, and include sources when possible." {...threadForm.register('body')}/>{threadForm.formState.errors.body &&
                 <span className="mt-1 block text-xs text-danger">{threadForm.formState.errors.body.message}</span>}
-            </label>}
-            {aiSearch && <p className="mt-4 rounded-lg border border-warning/25 bg-warning/10 px-4 py-3 text-xs leading-5 text-secondary"><strong className="text-warning">Unproven theory.</strong> Search results may provide context for or against the idea. They do not prove the allegation.</p>}
+            </label>
             <div className="mt-5 grid gap-3 md:grid-cols-2"><EvidencePicker caseId={caseId} selected={evidenceIds}
                                                                             onToggle={(id) => setEvidenceIds((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id])}/><PersonPicker
                 caseId={caseId} selected={personIds}
                 onToggle={(id) => setPersonIds((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id])}/>
             </div>
             <MutationError error={createThread.error}/>
-            <button disabled={createThread.isPending} className="primary-button mt-5 text-xs">{aiSearch ? <Sparkles
-                size={15}/> : <MessageCircle size={15}/>} {createThread.isPending ? (aiSearch ? 'Researching…' : 'Creating…') : (aiSearch ? 'Research and create thread' : 'Create thread')}</button>
+            <button disabled={createThread.isPending} className="primary-button mt-5 text-xs"><MessageCircle size={15}/> {createThread.isPending ? 'Creating…' : 'Create thread'}</button>
         </form>}
 
         {threads.length ?

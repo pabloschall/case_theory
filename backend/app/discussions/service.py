@@ -1,22 +1,16 @@
 import uuid
 from collections import Counter
-from collections.abc import Sequence
 from datetime import timedelta
 from typing import cast
-from urllib.parse import urlsplit
 
-from openai import OpenAIError
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.ai.schemas import ResearchedSource
-from app.ai.thread_research import OpenAIThreadResearcher
-from app.cases.models import Case, CaseSummary, Source
+from app.cases.models import Case
 from app.cases.schemas import SourceRead
 from app.common.errors import AppError
 from app.common.timestamps import utc_now
-from app.config.settings import get_settings
 from app.discussions.models import (
     DiscussionComment,
     DiscussionReaction,
@@ -40,10 +34,7 @@ from app.evidence.models import DiscussionThreadEvidence, Evidence
 from app.evidence.service import to_evidence_read
 from app.people.models import DiscussionThreadPerson, Person
 from app.people.service import to_linked_person
-from app.subscriptions.permissions import PermissionService
 from app.users.models import User
-
-THEORY_DISCLAIMER = "Unproven theory: This discussion explores a possibility. It is not proof that the claim is true."
 
 
 class DiscussionService:
@@ -178,60 +169,15 @@ class DiscussionService:
         )
 
     async def create_thread(self, case_id: uuid.UUID, current_user: User, data: ThreadCreate) -> ThreadRead:
-        case = await self._require_case(case_id)
-        body = data.body
-        thread_type = data.thread_type
-        ai_generated = False
-        review_status = "published"
-        researched_sources: list[Source] = []
-        if data.ai_search:
-            if not await PermissionService(self.db).allows(
-                current_user.id, "ai.research", is_admin=current_user.is_admin
-            ):
-                raise AppError(
-                    403,
-                    "ai_research_forbidden",
-                    "Your account cannot run AI research.",
-                )
-            summary = await self.db.scalar(
-                select(CaseSummary.body).where(
-                    CaseSummary.case_id == case_id,
-                    CaseSummary.is_current.is_(True),
-                )
-            )
-            try:
-                research = await OpenAIThreadResearcher(get_settings()).research(
-                    case_title=case.title,
-                    case_summary=summary or "",
-                    thread_title=data.title,
-                )
-            except (OpenAIError, RuntimeError) as exc:
-                raise AppError(
-                    503,
-                    "ai_research_unavailable",
-                    "AI research is currently unavailable. Please try again later.",
-                ) from exc
-            body = f"{THEORY_DISCLAIMER}\n\n{research.body}"
-            thread_type = "theory"
-            ai_generated = True
-            review_status = "suggested"
-            researched_sources = await self._save_research_sources(case_id, research.sources)
-        assert body is not None
+        await self._require_case(case_id)
         thread = DiscussionThread(
             case_id=case_id,
             title=data.title,
-            body=body,
-            thread_type=thread_type,
+            body=data.body,
+            thread_type=data.thread_type,
             created_by_user_id=current_user.id,
-            ai_generated=ai_generated,
-            review_status=review_status,
         )
         self.db.add(thread)
-        if researched_sources:
-            await self.db.flush()
-            self.db.add_all(
-                [DiscussionThreadSource(thread_id=thread.id, source_id=source.id) for source in researched_sources]
-            )
         if data.evidence_ids:
             evidence = await self._validated_evidence(case_id, data.evidence_ids)
             await self.db.flush()
@@ -390,43 +336,6 @@ class DiscussionService:
         if case is None:
             raise AppError(404, "case_not_found", "Case was not found")
         return case
-
-    async def _save_research_sources(self, case_id: uuid.UUID, researched: Sequence[ResearchedSource]) -> list[Source]:
-        existing = list(
-            (
-                await self.db.execute(
-                    select(Source).where(
-                        Source.case_id == case_id,
-                        Source.canonical_url.in_([item.url for item in researched]),
-                    )
-                )
-            ).scalars()
-        )
-        by_url = {item.canonical_url: item for item in existing}
-        next_position = int(
-            await self.db.scalar(select(func.max(Source.position)).where(Source.case_id == case_id)) or 0
-        )
-        result: list[Source] = []
-        for item in researched:
-            source = by_url.get(item.url)
-            if source is None:
-                next_position += 1
-                hostname = urlsplit(item.url).netloc.lower().removeprefix("www.")
-                source = Source(
-                    case_id=case_id,
-                    url=item.url,
-                    canonical_url=item.url,
-                    title=item.title,
-                    position=next_position,
-                    publisher=hostname or None,
-                    source_type="official" if hostname.endswith(".gov") else "article",
-                    reliability_metadata={"classification_basis": "URL and publisher provenance only"},
-                )
-                self.db.add(source)
-                by_url[item.url] = source
-            result.append(source)
-        await self.db.flush()
-        return result
 
     def _to_thread_read(
         self,

@@ -76,8 +76,6 @@ The Evidence tab accepts supported files up to 25 MB and public YouTube or websi
 
 AI-generated case banners also use the configured storage provider. They are stored privately under `cases/{case_id}/covers/{generation_id}.webp`; the database keeps the object key and a stable case-cover endpoint redirects authorized viewers to a short-lived storage URL. Local development uses the GCS emulator, while production uses the same flow with Google Cloud Storage. Manual template banners remain frontend assets.
 
-Discussion authors can optionally research a proposed theory with AI. The search uses the case title, current summary, and thread title as context, saves inspectable public sources, and labels the resulting thread as AI suggested. Every generated thread begins with an explicit notice that the theory is unproven and the research is not proof of the claim.
-
 ## FBI case discovery and import
 
 Paid investigators and admins can open **Create Case → Browse Sources → FBI** to search public FBI Wanted records. Eillen calls the FBI from the backend, caches lists for 15 minutes and individual records for one hour, and creates every import as a private draft. The official payload remains in `case_sources`, separate from AI suggestions and community edits. Imported images are validated and copied into the configured private storage provider.

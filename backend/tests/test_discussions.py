@@ -2,9 +2,7 @@ import pytest
 from httpx import AsyncClient
 from pytest import MonkeyPatch
 
-from app.ai.schemas import ResearchedSource, ThreadResearchResult
 from app.cases import routes as case_routes
-from app.discussions import service as discussion_service
 
 pytestmark = pytest.mark.usefixtures("paid_signups")
 
@@ -13,87 +11,6 @@ class StubTask:
     def delay(self, case_id: str, job_id: str) -> None:
         assert case_id
         assert job_id
-
-
-class StubThreadResearcher:
-    calls: list[dict[str, str]] = []
-
-    def __init__(self, _: object) -> None:
-        pass
-
-    async def research(self, **context: str) -> ThreadResearchResult:
-        self.calls.append(context)
-        return ThreadResearchResult(
-            body=(
-                "Public reporting documents the known timeline, but it does not establish "
-                "who was responsible. The proposed idea remains an inference."
-            ),
-            sources=[
-                ResearchedSource(
-                    title="Official public case record",
-                    url="https://example.gov/cases/fictional-discussion",
-                )
-            ],
-        )
-
-
-async def test_ai_search_creates_an_unproven_sourced_theory(client: AsyncClient, monkeypatch: MonkeyPatch) -> None:
-    StubThreadResearcher.calls = []
-    monkeypatch.setattr(discussion_service, "OpenAIThreadResearcher", StubThreadResearcher)
-    csrf_response = await client.get("/api/v1/auth/csrf")
-    token = csrf_response.json()["csrf_token"]
-    await client.post(
-        "/api/v1/auth/register",
-        headers={"X-CSRF-Token": token},
-        json={
-            "email": "theory@example.com",
-            "username": "theory_user",
-            "display_name": "Theory User",
-            "password": "sourcework123",
-            "confirm_age_18": True,
-            "accept_terms": True,
-            "accept_community_standards": True,
-        },
-    )
-    summary = "The public record leaves several events unresolved and open to careful discussion."
-    case_response = await client.post(
-        "/api/v1/cases",
-        headers={"X-CSRF-Token": token},
-        json={
-            "victim_names": "Fictional Theory Case",
-            "creation_mode": "manual",
-            "summary": summary,
-            "banner_template": "/case-banners/archive-room.jpg",
-        },
-    )
-    case_id = case_response.json()["id"]
-
-    created = await client.post(
-        f"/api/v1/cases/{case_id}/discussions",
-        headers={"X-CSRF-Token": token},
-        json={
-            "title": "The husband did it",
-            "thread_type": "dispute",
-            "ai_search": True,
-        },
-    )
-
-    assert created.status_code == 201
-    thread = created.json()
-    assert thread["title"] == "The husband did it"
-    assert thread["thread_type"] == "theory"
-    assert thread["ai_generated"] is True
-    assert thread["review_status"] == "suggested"
-    assert thread["body"].startswith("Unproven theory:")
-    assert "not proof" in thread["body"]
-    assert thread["sources"][0]["url"] == ("https://example.gov/cases/fictional-discussion")
-    assert StubThreadResearcher.calls == [
-        {
-            "case_title": "Fictional Theory Case",
-            "case_summary": summary,
-            "thread_title": "The husband did it",
-        }
-    ]
 
 
 async def test_flat_thread_comments_and_reaction_toggle(client: AsyncClient, monkeypatch: MonkeyPatch) -> None:
