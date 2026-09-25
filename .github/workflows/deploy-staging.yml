@@ -29,7 +29,6 @@ jobs:
       FRONTEND_SERVICE: ${{ vars.GCP_FRONTEND_SERVICE }}
       WORKER_POOL: ${{ vars.GCP_WORKER_POOL }}
       MIGRATION_JOB: ${{ vars.GCP_MIGRATION_JOB }}
-      STAGING_HEALTH_URL: ${{ vars.STAGING_HEALTH_URL }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -43,7 +42,7 @@ jobs:
         run: |
           required=(
             PROJECT_ID REGION ARTIFACT_REPOSITORY API_SERVICE FRONTEND_SERVICE
-            WORKER_POOL MIGRATION_JOB STAGING_HEALTH_URL
+            WORKER_POOL MIGRATION_JOB
             WORKLOAD_IDENTITY_PROVIDER DEPLOY_SERVICE_ACCOUNT
           )
           for name in "${required[@]}"; do
@@ -70,6 +69,42 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
+
+      - name: Resolve staging runtime configuration
+        run: |
+          required_secrets=(
+            secret-key database-url openai-api-key mailgun-api-key
+            mailgun-base-url mailgun-from-email fbi-api-key
+          )
+          for secret in "${required_secrets[@]}"; do
+            version="$(gcloud secrets versions list "$secret" \
+              --project="$PROJECT_ID" \
+              --filter='state=ENABLED' \
+              --limit=1 \
+              --format='value(name)')"
+            if [[ -z "$version" ]]; then
+              echo "Google Secret Manager secret '$secret' has no enabled version." >&2
+              exit 1
+            fi
+          done
+
+          redis_host="$(gcloud redis instances describe case-theory-stg-redis \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --format='value(host)')"
+          redis_port="$(gcloud redis instances describe case-theory-stg-redis \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --format='value(port)')"
+
+          echo "REDIS_URL=redis://${redis_host}:${redis_port}/0" >> "$GITHUB_ENV"
+          echo "API_RUNTIME_SERVICE_ACCOUNT=case-theory-stg-api@${PROJECT_ID}.iam.gserviceaccount.com" >> "$GITHUB_ENV"
+          echo "FRONTEND_RUNTIME_SERVICE_ACCOUNT=case-theory-stg-frontend@${PROJECT_ID}.iam.gserviceaccount.com" >> "$GITHUB_ENV"
+          echo "WORKER_RUNTIME_SERVICE_ACCOUNT=case-theory-stg-worker@${PROJECT_ID}.iam.gserviceaccount.com" >> "$GITHUB_ENV"
+          echo "MIGRATION_RUNTIME_SERVICE_ACCOUNT=case-theory-stg-migration@${PROJECT_ID}.iam.gserviceaccount.com" >> "$GITHUB_ENV"
+          echo "VPC_NETWORK=case-theory-stg-vpc" >> "$GITHUB_ENV"
+          echo "VPC_SUBNET=case-theory-stg-${REGION}" >> "$GITHUB_ENV"
+          echo "EVIDENCE_BUCKET=${PROJECT_ID}-staging-evidence" >> "$GITHUB_ENV"
 
       - name: Log in to Artifact Registry
         uses: docker/login-action@v4
@@ -112,12 +147,82 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
-      - name: Update and execute database migration job
+      - name: Write initial API configuration
         run: |
-          gcloud run jobs update "$MIGRATION_JOB" \
+          cat > runtime.env.yaml <<EOF
+          ENVIRONMENT: "staging"
+          COOKIE_SECURE: "true"
+          FRONTEND_URL: "https://staging.invalid"
+          ALLOWED_HOSTS: '["*"]'
+          REDIS_URL: "$REDIS_URL"
+          STORAGE_PROVIDER: "gcs"
+          GCS_BUCKET: "$EVIDENCE_BUCKET"
+          GCS_PROJECT_ID: "$PROJECT_ID"
+          GCS_SIGNING_SERVICE_ACCOUNT: "$API_RUNTIME_SERVICE_ACCOUNT"
+          EOF
+
+      - name: Deploy API revision
+        run: |
+          gcloud run deploy "$API_SERVICE" \
             --project="$PROJECT_ID" \
             --region="$REGION" \
             --image="$BACKEND_IMAGE" \
+            --service-account="$API_RUNTIME_SERVICE_ACCOUNT" \
+            --network="$VPC_NETWORK" \
+            --subnet="$VPC_SUBNET" \
+            --vpc-egress=private-ranges-only \
+            --env-vars-file=runtime.env.yaml \
+            --set-secrets=SECRET_KEY=secret-key:latest,DATABASE_URL=database-url:latest,OPENAI_API_KEY=openai-api-key:latest,MAILGUN_API_KEY=mailgun-api-key:latest,MAILGUN_BASE_URL=mailgun-base-url:latest,MAILGUN_FROM_EMAIL=mailgun-from-email:latest,FBI_API_KEY=fbi-api-key:latest \
+            --allow-unauthenticated \
+            --quiet
+
+          api_url="$(gcloud run services describe "$API_SERVICE" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --format='value(status.url)')"
+          echo "API_URL=$api_url" >> "$GITHUB_ENV"
+
+      - name: Deploy frontend revision
+        run: |
+          gcloud run deploy "$FRONTEND_SERVICE" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --image="$FRONTEND_IMAGE" \
+            --service-account="$FRONTEND_RUNTIME_SERVICE_ACCOUNT" \
+            --set-env-vars="API_UPSTREAM=$API_URL,NGINX_ENVSUBST_FILTER=API_UPSTREAM" \
+            --allow-unauthenticated \
+            --quiet
+
+          frontend_url="$(gcloud run services describe "$FRONTEND_SERVICE" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --format='value(status.url)')"
+          echo "FRONTEND_URL=$frontend_url" >> "$GITHUB_ENV"
+
+      - name: Set public frontend origin on API
+        run: |
+          gcloud run services update "$API_SERVICE" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --update-env-vars="FRONTEND_URL=$FRONTEND_URL" \
+            --quiet
+
+      - name: Deploy and execute database migration job
+        run: |
+          sed "s#https://staging.invalid#$FRONTEND_URL#" runtime.env.yaml > runtime-final.env.yaml
+          gcloud run jobs deploy "$MIGRATION_JOB" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --image="$BACKEND_IMAGE" \
+            --service-account="$MIGRATION_RUNTIME_SERVICE_ACCOUNT" \
+            --network="$VPC_NETWORK" \
+            --subnet="$VPC_SUBNET" \
+            --vpc-egress=private-ranges-only \
+            --env-vars-file=runtime-final.env.yaml \
+            --set-secrets=SECRET_KEY=secret-key:latest,DATABASE_URL=database-url:latest,MAILGUN_API_KEY=mailgun-api-key:latest,MAILGUN_BASE_URL=mailgun-base-url:latest,MAILGUN_FROM_EMAIL=mailgun-from-email:latest \
+            --command=./bin/migrate-and-seed \
+            --max-retries=1 \
+            --task-timeout=10m \
             --quiet
           gcloud run jobs execute "$MIGRATION_JOB" \
             --project="$PROJECT_ID" \
@@ -130,22 +235,13 @@ jobs:
             --project="$PROJECT_ID" \
             --region="$REGION" \
             --image="$BACKEND_IMAGE" \
-            --quiet
-
-      - name: Deploy API revision
-        run: |
-          gcloud run services update "$API_SERVICE" \
-            --project="$PROJECT_ID" \
-            --region="$REGION" \
-            --image="$BACKEND_IMAGE" \
-            --quiet
-
-      - name: Deploy frontend revision
-        run: |
-          gcloud run services update "$FRONTEND_SERVICE" \
-            --project="$PROJECT_ID" \
-            --region="$REGION" \
-            --image="$FRONTEND_IMAGE" \
+            --service-account="$WORKER_RUNTIME_SERVICE_ACCOUNT" \
+            --network="$VPC_NETWORK" \
+            --subnet="$VPC_SUBNET" \
+            --vpc-egress=private-ranges-only \
+            --env-vars-file=runtime-final.env.yaml \
+            --set-secrets=SECRET_KEY=secret-key:latest,DATABASE_URL=database-url:latest,OPENAI_API_KEY=openai-api-key:latest,MAILGUN_API_KEY=mailgun-api-key:latest,MAILGUN_BASE_URL=mailgun-base-url:latest,MAILGUN_FROM_EMAIL=mailgun-from-email:latest,FBI_API_KEY=fbi-api-key:latest \
+            --command=./bin/start-worker \
             --quiet
 
       - name: Smoke test staging
@@ -157,7 +253,7 @@ jobs:
             --retry 12 \
             --retry-delay 5 \
             --retry-all-errors \
-            "$STAGING_HEALTH_URL"
+            "$API_URL/health"
 
       - name: Record deployed images
         run: |

@@ -4,6 +4,10 @@ locals {
       account_id   = "${var.name_prefix}-api"
       display_name = "Case Theory staging API"
     }
+    frontend = {
+      account_id   = "${var.name_prefix}-frontend"
+      display_name = "Case Theory staging frontend"
+    }
     worker = {
       account_id   = "${var.name_prefix}-worker"
       display_name = "Case Theory staging worker"

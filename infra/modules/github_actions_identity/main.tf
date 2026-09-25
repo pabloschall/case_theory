@@ -35,7 +35,10 @@ locals {
 
   deploy_project_roles = toset([
     "roles/artifactregistry.writer",
+    "roles/compute.networkUser",
+    "roles/redis.viewer",
     "roles/run.admin",
+    "roles/secretmanager.viewer",
   ])
 }
 

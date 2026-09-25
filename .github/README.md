@@ -17,14 +17,21 @@ Configure these repository or `staging` environment variables before the first d
 | `GCP_FRONTEND_SERVICE` | `case-theory-stg-frontend` |
 | `GCP_WORKER_POOL` | `case-theory-stg-worker` |
 | `GCP_MIGRATION_JOB` | `case-theory-stg-migration` |
-| `STAGING_HEALTH_URL` | The public HTTPS API health URL ending in `/health` |
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | Full Workload Identity Provider resource name |
 | `GCP_DEPLOY_SERVICE_ACCOUNT` | Deployment service-account email |
 | `GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT` | Read-only Terraform planning service-account email |
 | `GCP_TERRAFORM_APPLY_SERVICE_ACCOUNT` | Terraform apply service-account email |
 | `STAGING_FRONTEND_ORIGIN` | Public staging frontend origin used for GCS CORS |
 
-Cloud Run services, the worker pool, and the migration job must exist before the delivery workflow runs. Terraform owns their configuration; the workflow updates only their image revisions and executes the migration job.
+The deployment workflow creates the Cloud Run services, worker pool, and migration job on its first run, then updates them on later runs. It discovers the API URL after deployment and uses that URL for the smoke test.
+
+Before the first deployment, add enabled versions to these Google Secret Manager secrets: `secret-key`, `database-url`, `openai-api-key`, `mailgun-api-key`, `mailgun-base-url`, `mailgun-from-email`, and `fbi-api-key`. Terraform creates the secret containers and grants the runtime identities access; it does not store secret values in Terraform state.
+
+After applying the infrastructure changes, seed the empty secrets and create the staging database user from the local `.env` without printing secret values:
+
+```bash
+./scripts/bootstrap-staging-secrets
+```
 
 Set `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, and `GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT` as repository variables so same-repository pull-request plans can read them. Scope `GCP_TERRAFORM_APPLY_SERVICE_ACCOUNT` to the protected `staging-infrastructure` environment. The remaining application deployment values may be scoped to the `staging` environment.
 
