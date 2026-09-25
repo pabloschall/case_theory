@@ -375,6 +375,12 @@ class CaseService:
         await self.db.commit()
 
     async def queue_research(self, case_id: uuid.UUID, user: User) -> CaseGenerationJob:
+        if not user.is_admin:
+            raise AppError(
+                403,
+                "admin_required",
+                "Only administrators can research an existing case",
+            )
         await PermissionService(self.db).require(
             user,
             "ai.research",

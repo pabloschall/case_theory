@@ -66,6 +66,7 @@ export function CasePage() {
     const importedFromFbi = item.external_sources.some((source) => source.source_type === 'fbi')
     const caseMetadata = [item.year, item.location].filter(Boolean).join(' · ')
     const canResearch = currentUser?.permissions.includes('ai.research') ?? false
+    const isAdmin = currentUser?.permissions.includes('admin.access') ?? false
     const canInvite = currentUser?.permissions.includes('case.invite') ?? false
     const canWriteTimeline = currentUser?.permissions.includes('timeline.write') ?? false
     const canWritePrivateTimeline = currentUser?.permissions.includes('timeline.private_write') ?? false
@@ -104,11 +105,11 @@ export function CasePage() {
                             disabled={sourceEnrichment.isPending}
                             className="secondary-button w-fit border-accent/45 text-xs text-accent"><Sparkles
                         size={15}/>{sourceEnrichment.isPending ? 'Queuing enrichment…' : 'Enrich official source'}
-                    </button> : <UpgradeButton requiredTier={3} description="AI enrichment for an existing case is available on the Lead Investigator plan.">Enrich official source</UpgradeButton>)}{currentUser && !importedFromFbi && !generating &&
-                    (canResearch ? <button type="button" onClick={() => research.mutate()} disabled={research.isPending}
+                    </button> : <UpgradeButton requiredTier={3} description="AI enrichment for an existing case is available on the Lead Investigator plan.">Enrich official source</UpgradeButton>)}{isAdmin && !importedFromFbi && !generating &&
+                    <button type="button" onClick={() => research.mutate()} disabled={research.isPending}
                             className="secondary-button w-fit border-accent/45 text-xs text-accent"><RefreshCw size={15}
                                                                                                                 className={research.isPending ? 'animate-spin' : ''}/>{research.isPending ? 'Queuing research…' : 'Research again'}
-                    </button> : <UpgradeButton requiredTier={3} description="Researching an existing case is available on the Lead Investigator plan.">Research again</UpgradeButton>)}{currentUser && (canInvite ?
+                    </button>}{currentUser && (canInvite ?
                     <InviteCollaborators caseId={item.id}/> : <UpgradeButton description="Inviting collaborators is available on the Investigator plan.">Invite person</UpgradeButton>)} {item.is_owner && (currentUser?.permissions.includes('case.private') ? <label
                     className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-default bg-background/70 px-3 text-xs text-secondary"><span>Visibility</span><select
                     value={item.privacy} disabled={privacyMutation.isPending}

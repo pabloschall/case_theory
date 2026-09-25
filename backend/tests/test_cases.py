@@ -351,6 +351,59 @@ async def test_create_manual_case_with_summary_and_banner(
 
 
 @pytest.mark.usefixtures("paid_signups")
+async def test_only_admin_can_research_an_existing_case(
+    client: AsyncClient, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setattr(routes, "generate_case", StubTask())
+    token = (await client.get("/api/v1/auth/csrf")).json()["csrf_token"]
+    await client.post(
+        "/api/v1/auth/register",
+        headers={"X-CSRF-Token": token},
+        json={
+            "email": "case-research@example.com",
+            "username": "case_research_admin",
+            "display_name": "Case Research Admin",
+            "password": "sourcework123",
+            "confirm_age_18": True,
+            "accept_terms": True,
+            "accept_community_standards": True,
+        },
+    )
+    current_user = (await client.get("/api/v1/users/me")).json()
+    case = await client.post(
+        "/api/v1/cases",
+        headers={"X-CSRF-Token": token},
+        json={
+            "victim_names": "Manual Research Case",
+            "creation_mode": "manual",
+            "summary": "A manual overview that an administrator may later research again.",
+            "banner_template": "/case-banners/archive-room.jpg",
+        },
+    )
+    case_id = case.json()["id"]
+
+    forbidden = await client.post(
+        f"/api/v1/cases/{case_id}/research",
+        headers={"X-CSRF-Token": token},
+    )
+    assert forbidden.status_code == 403
+    assert forbidden.json()["error"]["code"] == "admin_required"
+
+    async with SessionFactory() as db:
+        user = await db.get(User, uuid.UUID(current_user["id"]))
+        assert user is not None
+        user.is_admin = True
+        await db.commit()
+
+    queued = await client.post(
+        f"/api/v1/cases/{case_id}/research",
+        headers={"X-CSRF-Token": token},
+    )
+    assert queued.status_code == 202
+    assert queued.json()["status"] == "queued"
+
+
+@pytest.mark.usefixtures("paid_signups")
 async def test_user_can_add_unverified_timeline_event(client: AsyncClient, monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr(routes, "generate_case", StubTask())
     token = (await client.get("/api/v1/auth/csrf")).json()["csrf_token"]
