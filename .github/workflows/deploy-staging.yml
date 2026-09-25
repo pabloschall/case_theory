@@ -65,7 +65,6 @@ jobs:
         uses: google-github-actions/setup-gcloud@v3
         with:
           project_id: ${{ env.PROJECT_ID }}
-          version: ">= 586.0.0"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
