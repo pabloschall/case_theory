@@ -29,6 +29,9 @@ export function AppShell() {
   const { data: currentUser } = useQuery({ queryKey: ['current-user'], queryFn: api.currentUser, retry: false })
   const authenticated = Boolean(currentUser)
   const canAccessAdmin = currentUser?.permissions.includes('admin.access') ?? false
+  const canMessage = currentUser?.permissions.includes('messaging.use') ?? false
+  const { data: unreadMessages } = useQuery({ queryKey: ['messages', 'unread'], queryFn: api.unreadMessages, enabled: canMessage, refetchInterval: 5000 })
+  const showMessengerDot = unreadMessages?.has_unread ?? false
   const authenticatedNavigation = canAccessAdmin ? adminNavigation : workspaceNavigation
   const primaryNavigation = authenticated ? authenticatedNavigation : workspaceNavigation.slice(0, 1)
   const mobileNavigation = authenticated
@@ -62,7 +65,7 @@ export function AppShell() {
       <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Brand to={canAccessAdmin ? '/admin/users' : '/cases'} />
         <nav className="hidden items-center gap-8 md:flex" aria-label="Workspace">
-          {primaryNavigation.map(({ to, label }) => <Link key={to} to={to} className={`relative py-7 text-[11px] font-semibold uppercase tracking-[.14em] transition duration-200 ${isActive(to) ? 'text-accent after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-accent' : 'text-muted hover:text-primary'}`}>{label}</Link>)}
+          {primaryNavigation.map(({ to, label }) => <Link key={to} to={to} className={`relative py-7 text-[11px] font-semibold uppercase tracking-[.14em] transition duration-200 ${isActive(to) ? 'text-accent after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-accent' : 'text-muted hover:text-primary'}`}>{label}{to === '/messages' && showMessengerDot && <span aria-label="Unread messages" className="absolute right-[-9px] top-[22px] size-2 rounded-full bg-red-500"/>}</Link>)}
         </nav>
         <div className="flex items-center gap-2">
           {greetingVisible && <button type="button" onClick={toggleGreeting} className="ghost-button size-11 px-0" aria-label={greetingPlaying ? 'Pause greeting' : 'Play greeting'} title={greetingPlaying ? 'Pause greeting' : 'Play greeting'}>{greetingPlaying ? <Volume2 size={17}/> : <VolumeX size={17}/>}</button>}
@@ -70,11 +73,11 @@ export function AppShell() {
           <button onClick={() => setNavigationOpen(!navigationOpen)} className="ghost-button size-11 px-0 md:hidden" aria-label="Toggle navigation">{navigationOpen ? <X size={20}/> : <Menu size={20}/>}</button>
         </div>
       </div>
-      {navigationOpen && <nav className="border-t border-subtle bg-surface p-4 md:hidden" aria-label="Mobile workspace">{mobileNavigation.map(({to,label}) => <Link onClick={() => setNavigationOpen(false)} key={to} to={to} className={`block rounded-lg px-4 py-3 text-sm font-semibold ${isActive(to) ? 'bg-accent-muted text-accent' : 'text-primary hover:bg-white/5'}`}>{label}</Link>)}</nav>}
+      {navigationOpen && <nav className="border-t border-subtle bg-surface p-4 md:hidden" aria-label="Mobile workspace">{mobileNavigation.map(({to,label}) => <Link onClick={() => setNavigationOpen(false)} key={to} to={to} className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold ${isActive(to) ? 'bg-accent-muted text-accent' : 'text-primary hover:bg-white/5'}`}>{label}{to === '/messages' && showMessengerDot && <span aria-label="Unread messages" className="size-2 rounded-full bg-red-500"/>}</Link>)}</nav>}
     </header>
     <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-12"><Outlet /></main>
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-subtle bg-background/95 px-2 pb-[max(.45rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden" aria-label="Primary">
-      <div className="mx-auto grid max-w-md" style={{ gridTemplateColumns: `repeat(${mobileNavigation.length}, minmax(0, 1fr))` }}>{mobileNavigation.map(({to,label,icon:Icon}) => <Link key={to} to={to} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-medium transition duration-200 ${isActive(to) ? 'text-accent' : 'text-muted'}`}><Icon size={18}/>{label}</Link>)}</div>
+      <div className="mx-auto grid max-w-md" style={{ gridTemplateColumns: `repeat(${mobileNavigation.length}, minmax(0, 1fr))` }}>{mobileNavigation.map(({to,label,icon:Icon}) => <Link key={to} to={to} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-medium transition duration-200 ${isActive(to) ? 'text-accent' : 'text-muted'}`}><span className="relative"><Icon size={18}/>{to === '/messages' && showMessengerDot && <span aria-label="Unread messages" className="absolute -right-2 -top-1 size-2 rounded-full bg-red-500"/>}</span>{label}</Link>)}</div>
     </nav>
   </div>
 }

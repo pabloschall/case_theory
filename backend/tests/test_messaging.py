@@ -161,6 +161,72 @@ async def test_direct_messages_with_private_file_attachments(client: AsyncClient
         app.dependency_overrides.pop(get_storage_provider, None)
 
 
+async def test_unread_messages_are_cleared_when_a_conversation_is_read(client: AsyncClient) -> None:
+    token = await _csrf(client)
+    first = await _register(
+        client, token, email="unread-one@example.com", username="unread_one", display_name="First"
+    )
+    await client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": token})
+    second = await _register(
+        client, token, email="unread-two@example.com", username="unread_two", display_name="Second"
+    )
+    opened = await client.post(
+        "/api/v1/messages/conversations",
+        headers={"X-CSRF-Token": token},
+        json={"recipient_user_id": first["id"]},
+    )
+    conversation_id = opened.json()["id"]
+    first_message = await client.post(
+        f"/api/v1/messages/conversations/{conversation_id}/messages",
+        headers={"X-CSRF-Token": token},
+        json={"body": "Hello", "attachment_ids": []},
+    )
+    assert first_message.status_code == 200
+    assert (await client.get("/api/v1/messages/unread")).json() == {"has_unread": False}
+
+    await client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": token})
+    await client.post(
+        "/api/v1/auth/login",
+        headers={"X-CSRF-Token": token},
+        json={"email": "unread-one@example.com", "password": "sourcework123"},
+    )
+    assert (await client.get("/api/v1/messages/unread")).json() == {"has_unread": True}
+    conversations = await client.get("/api/v1/messages/conversations")
+    assert conversations.json()["items"][0]["has_unread"] is True
+
+    read = await client.post(
+        f"/api/v1/messages/conversations/{conversation_id}/read",
+        params={"message_id": first_message.json()["id"]},
+        headers={"X-CSRF-Token": token},
+    )
+    assert read.status_code == 204
+    assert (await client.get("/api/v1/messages/unread")).json() == {"has_unread": False}
+    assert (await client.get("/api/v1/messages/conversations")).json()["items"][0]["has_unread"] is False
+
+    await client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": token})
+    await client.post(
+        "/api/v1/auth/login",
+        headers={"X-CSRF-Token": token},
+        json={"email": "unread-two@example.com", "password": "sourcework123"},
+    )
+    reply = await client.post(
+        f"/api/v1/messages/conversations/{conversation_id}/messages",
+        headers={"X-CSRF-Token": token},
+        json={"body": "Another note", "attachment_ids": []},
+    )
+    assert reply.status_code == 200
+    assert reply.json()["sender"]["id"] == second["id"]
+    assert (await client.get("/api/v1/messages/unread")).json() == {"has_unread": False}
+
+    await client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": token})
+    await client.post(
+        "/api/v1/auth/login",
+        headers={"X-CSRF-Token": token},
+        json={"email": "unread-one@example.com", "password": "sourcework123"},
+    )
+    assert (await client.get("/api/v1/messages/unread")).json() == {"has_unread": True}
+
+
 async def test_conversation_access_is_limited_to_participants(client: AsyncClient) -> None:
     token = await _csrf(client)
     first = await _register(

@@ -15,6 +15,7 @@ from app.messaging.schemas import (
     ConversationRead,
     MessageCreate,
     MessageRead,
+    UnreadStatus,
 )
 from app.messaging.service import MessagingService
 from app.storage.base import StorageProvider
@@ -27,6 +28,13 @@ router = APIRouter(
     tags=["messaging"],
     dependencies=[Depends(require_permission("messaging.use", required_tier=2))],
 )
+
+
+@router.get("/unread", response_model=UnreadStatus)
+async def unread_status(
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+) -> UnreadStatus:
+    return UnreadStatus(has_unread=await MessagingService(db).has_unread(user))
 
 
 @router.get("/conversations", response_model=ConversationPage)
@@ -71,6 +79,20 @@ async def conversation(
     return await MessagingService(db).get(
         conversation_id, user, cursor=cursor, limit=limit
     )
+
+
+@router.post(
+    "/conversations/{conversation_id}/read",
+    status_code=204,
+    dependencies=[Depends(verify_csrf)],
+)
+async def mark_conversation_read(
+    conversation_id: uuid.UUID,
+    message_id: uuid.UUID = Query(),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    await MessagingService(db).mark_read(conversation_id, message_id, user)
 
 
 @router.post(

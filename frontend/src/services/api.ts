@@ -74,6 +74,8 @@ export const api = {
     if (cursor) params.set('cursor', cursor)
     return request<CursorPage<DirectConversationSummary>>(`/messages/conversations?${params.toString()}`)
   },
+  unreadMessages: () => request<{ has_unread: boolean }>('/messages/unread'),
+  markConversationRead: (conversationId: string, messageId: string) => request<void>(`/messages/conversations/${conversationId}/read?message_id=${messageId}`, { method: 'POST' }),
   conversation: (id: string, cursor?: string, limit = 30) => {
     const params = new URLSearchParams({ limit: String(limit) })
     if (cursor) params.set('cursor', cursor)

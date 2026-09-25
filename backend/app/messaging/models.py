@@ -39,6 +39,8 @@ class DirectConversation(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
+    user_one_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    user_two_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     user_one: Mapped[User] = relationship(foreign_keys=[user_one_id])
     user_two: Mapped[User] = relationship(foreign_keys=[user_two_id])

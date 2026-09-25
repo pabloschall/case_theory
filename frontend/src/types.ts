@@ -76,6 +76,7 @@ export type DirectConversationSummary = {
   other_user: MemberProfile
   last_message: string | null
   updated_at: string
+  has_unread: boolean
 }
 
 export type DirectConversation = DirectConversationSummary & {

@@ -120,6 +120,7 @@ class MessagingService:
         has_more = len(records) > limit
         records = records[:limit]
         latest_messages = await self._latest_message_bodies([item.id for item in records])
+        unread_ids = await self._unread_conversation_ids(current.id, [item.id for item in records])
         total = int(
             await self.db.scalar(
                 select(func.count(DirectConversation.id)).where(participant)
@@ -127,11 +128,77 @@ class MessagingService:
             or 0
         )
         items = [
-            self._summary(item, current.id, latest_messages.get(item.id))
+            self._summary(item, current.id, latest_messages.get(item.id), item.id in unread_ids)
             for item in records
         ]
         next_cursor = records[-1].id if has_more and records else None
         return items, next_cursor, has_more, total
+
+    async def has_unread(self, current: User) -> bool:
+        statement = (
+            select(DirectMessage.id)
+            .join(DirectConversation, DirectMessage.conversation_id == DirectConversation.id)
+            .where(self._unread_condition(current.id))
+            .limit(1)
+        )
+        return await self.db.scalar(statement) is not None
+
+    async def mark_read(
+        self, conversation_id: uuid.UUID, message_id: uuid.UUID, current: User
+    ) -> None:
+        conversation = await self._conversation(conversation_id, current.id)
+        message = await self.db.scalar(
+            select(DirectMessage).where(
+                DirectMessage.id == message_id,
+                DirectMessage.conversation_id == conversation_id,
+            )
+        )
+        if message is None:
+            raise AppError(404, "message_not_found", "Message was not found")
+        field = "user_one_read_at" if conversation.user_one_id == current.id else "user_two_read_at"
+        previous = getattr(conversation, field)
+        if previous is None or previous < message.created_at:
+            setattr(conversation, field, message.created_at)
+            conversation.updated_at = conversation.updated_at
+            await self.db.commit()
+
+    async def _unread_conversation_ids(
+        self, user_id: uuid.UUID, conversation_ids: list[uuid.UUID]
+    ) -> set[uuid.UUID]:
+        if not conversation_ids:
+            return set()
+        result = await self.db.scalars(
+            select(DirectMessage.conversation_id)
+            .join(DirectConversation, DirectMessage.conversation_id == DirectConversation.id)
+            .where(
+                DirectConversation.id.in_(conversation_ids),
+                self._unread_condition(user_id),
+            )
+            .distinct()
+        )
+        return set(result)
+
+    @staticmethod
+    def _unread_condition(user_id: uuid.UUID) -> ColumnElement[bool]:
+        return and_(
+            DirectMessage.sender_user_id != user_id,
+            or_(
+                and_(
+                    DirectConversation.user_one_id == user_id,
+                    or_(
+                        DirectConversation.user_one_read_at.is_(None),
+                        DirectMessage.created_at > DirectConversation.user_one_read_at,
+                    ),
+                ),
+                and_(
+                    DirectConversation.user_two_id == user_id,
+                    or_(
+                        DirectConversation.user_two_read_at.is_(None),
+                        DirectMessage.created_at > DirectConversation.user_two_read_at,
+                    ),
+                ),
+            ),
+        )
 
     async def get(
         self,
@@ -229,6 +296,10 @@ class MessagingService:
         )
         self.db.add(message)
         await self.db.flush()
+        if conversation.user_one_id == current.id:
+            conversation.user_one_read_at = message.created_at
+        else:
+            conversation.user_two_read_at = message.created_at
         for attachment in attachments:
             attachment.message_id = message.id
         conversation.updated_at = utc_now()
@@ -411,6 +482,7 @@ class MessagingService:
         conversation: DirectConversation,
         current_user_id: uuid.UUID,
         last_message: str | None,
+        has_unread: bool = False,
     ) -> ConversationSummaryRead:
         other = (
             conversation.user_two
@@ -422,6 +494,7 @@ class MessagingService:
             other_user=member_read(other),
             last_message=last_message,
             updated_at=conversation.updated_at,
+            has_unread=has_unread,
         )
 
     def _message_read(self, item: DirectMessage) -> MessageRead:

@@ -67,6 +67,11 @@ class ConversationSummaryRead(BaseModel):
     other_user: MemberRead
     last_message: str | None
     updated_at: datetime
+    has_unread: bool = False
+
+
+class UnreadStatus(BaseModel):
+    has_unread: bool
 
 
 class ConversationPage(BaseModel):
