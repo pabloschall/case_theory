@@ -2,11 +2,15 @@ import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
+from openai import OpenAIError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import RedirectResponse
 
+from app.ai.chat_research import ChatResearchRequest, ChatResearchResponse, OpenAIChatResearcher
 from app.auth.dependencies import get_current_user, get_optional_current_user, verify_csrf
 from app.cases.dependencies import require_case_access, require_public_case_access
+from app.cases.models import CaseSummary
 from app.cases.schemas import (
     CaseCreate,
     CaseListItem,
@@ -19,6 +23,8 @@ from app.cases.schemas import (
 )
 from app.cases.service import CaseService, to_case_read, to_list_item
 from app.cases.tasks import generate_case
+from app.common.errors import AppError
+from app.config.settings import get_settings
 from app.db.session import get_db
 from app.storage.base import StorageProvider
 from app.storage.provider import get_storage_provider
@@ -234,3 +240,36 @@ async def research_case(
     job = await CaseService(db).queue_research(case_id, user)
     generate_case.delay(str(case_id), str(job.id))
     return {"job_id": str(job.id), "status": "queued"}
+
+
+@router.post(
+    "/{case_id}/research-chat",
+    response_model=ChatResearchResponse,
+    dependencies=[
+        Depends(verify_csrf),
+        Depends(require_case_access),
+        Depends(require_permission("ai.research", required_tier=3)),
+    ],
+)
+async def research_chat(
+    case_id: uuid.UUID,
+    data: ChatResearchRequest,
+    db: AsyncSession = Depends(get_db),
+) -> ChatResearchResponse:
+    case = await CaseService(db).get(case_id)
+    summary = await db.scalar(
+        select(CaseSummary.body).where(
+            CaseSummary.case_id == case_id, CaseSummary.is_current.is_(True)
+        )
+    )
+    try:
+        return await OpenAIChatResearcher(get_settings()).answer(
+            case_title=case.title,
+            case_summary=summary or "",
+            message=data.message.strip(),
+            history=data.history,
+        )
+    except (OpenAIError, RuntimeError) as exc:
+        raise AppError(
+            503, "ai_research_unavailable", "Research chat is unavailable. Please try again later."
+        ) from exc

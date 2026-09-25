@@ -15,8 +15,9 @@ import {InviteCollaborators} from '../invitations/InviteCollaborators'
 import {APP_NAME} from '../../config/brand'
 import {MyNotesPanel} from '../notes/MyNotesPanel'
 import {MyTimelinePanel} from '../timeline/MyTimelinePanel'
+import {ResearcherChat} from './ResearcherChat'
 
-const tabs = ['Overview', 'Timeline', 'Evidence', 'Discussion', 'Map', 'People', 'My Notes', 'My Timeline'] as const
+const tabs = ['Overview', 'Chat Researcher', 'Timeline', 'Evidence', 'Discussion', 'Map', 'People', 'My Notes', 'My Timeline'] as const
 type Tab = typeof tabs[number]
 const generationStatuses = ['queued', 'researching_sources', 'generating_overview', 'generating_banner', 'queued_source_enrichment', 'enriching_official_source']
 
@@ -132,7 +133,9 @@ export function CasePage() {
              <DiscussionPanel caseId={item.id} readOnly={!canWriteDiscussion}/>} {tab === 'Map' && <MapPanel caseId={item.id} readOnly={!canWriteMap}/>} {tab === 'People' &&
             (canViewPeople ? <PeoplePanel caseId={item.id} readOnly={!currentUser}/> : <UpgradePanel title="People & Relationships is locked" description="This private case is available only to its members."/>)} {tab === 'My Notes' &&
             <MyNotesPanel caseId={item.id} canWrite={canWriteNotes} isAuthenticated={Boolean(currentUser)}/>} {tab === 'My Timeline' &&
-            <MyTimelinePanel caseId={item.id} canWrite={canWritePrivateTimeline} isAuthenticated={Boolean(currentUser)}/>}</div>
+            <MyTimelinePanel caseId={item.id} canWrite={canWritePrivateTimeline} isAuthenticated={Boolean(currentUser)}/>}
+            <div hidden={tab !== 'Chat Researcher'}>{canResearch ? <ResearcherChat key={item.id} caseId={item.id} title={item.title}/> : <UpgradePanel title="Chat Researcher is locked" description="Online AI research is available on the Lead Investigator plan."/>}</div>
+        </div>
     </div>
 }
 

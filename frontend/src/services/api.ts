@@ -63,6 +63,7 @@ export const api = {
   createCase: (data: { victim_names: string; year?: number; location?: string; additional_context?: string; creation_mode: 'ai' | 'manual'; summary?: string; banner_template?: string; privacy: 'public' | 'private' }) => request<CaseDetail>('/cases', { method: 'POST', body: JSON.stringify(data) }),
   case: (id: string) => request<CaseDetail>(`/cases/${id}`),
   researchCase: (id: string) => request<{ job_id: string; status: string }>(`/cases/${id}/research`, { method: 'POST' }),
+  researchChat: (id: string, data: { message: string; history: { role: 'user' | 'assistant'; content: string }[] }) => request<{ answer: string; sources: { title: string; url: string }[] }>(`/cases/${id}/research-chat`, { method: 'POST', body: JSON.stringify(data) }),
   updateCasePrivacy: (id: string, privacy: 'public' | 'private') => request<CaseDetail>(`/cases/${id}/privacy`, { method: 'PATCH', body: JSON.stringify({ privacy }) }),
   createCaseInvitation: (caseId: string) => request<CaseInvitation>(`/cases/${caseId}/invitations`, { method: 'POST', body: JSON.stringify({ role: 'contributor' }) }),
   invitation: (token: string) => request<InvitationPreview>(`/invitations/${token}`),
