@@ -21,7 +21,7 @@ const createAdminSchema = z.object({
   email: z.email('Enter a valid email address'),
   username: z.string().min(3, 'Use at least 3 characters').max(40).regex(/^[a-zA-Z0-9_]+$/, 'Use letters, numbers, and underscores only'),
   display_name: z.string().trim().min(1, 'Enter a display name').max(80),
-  password: z.string().min(12, 'Use at least 12 characters').max(128).refine((value) => /[A-Za-z]/.test(value) && /\d/.test(value), 'Include at least one letter and one number'),
+  password: z.string().min(8, 'Use at least 8 characters').max(128).refine((value) => /[A-Za-z]/.test(value) && /\d/.test(value), 'Include at least one letter and one number'),
   confirm_password: z.string(),
 }).refine((data) => data.password === data.confirm_password, { message: 'Passwords do not match', path: ['confirm_password'] })
 
@@ -85,7 +85,7 @@ export function AdminUsersPage() {
         <AdminField label="Username" error={errors.username?.message}><input className="field mt-2" autoComplete="off" placeholder="case_admin" {...register('username')}/></AdminField>
         <AdminField label="Display name" error={errors.display_name?.message}><input className="field mt-2" autoComplete="off" placeholder="Case Administrator" {...register('display_name')}/></AdminField>
         <div className="hidden sm:block"/>
-        <AdminField label="Temporary password" error={errors.password?.message}><input className="field mt-2" type="password" autoComplete="new-password" placeholder="12+ characters" {...register('password')}/></AdminField>
+        <AdminField label="Temporary password" error={errors.password?.message}><input className="field mt-2" type="password" autoComplete="new-password" placeholder="8+ characters" {...register('password')}/></AdminField>
         <AdminField label="Confirm password" error={errors.confirm_password?.message}><input className="field mt-2" type="password" autoComplete="new-password" placeholder="Repeat password" {...register('confirm_password')}/></AdminField>
       </div>
       {createAdmin.error && <ErrorBanner error={createAdmin.error} fallback="Could not create the administrator"/>}

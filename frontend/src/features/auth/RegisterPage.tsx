@@ -8,7 +8,7 @@ import { AuthLayout } from '../../components/AuthLayout'
 import { queryClient } from '../../lib/query'
 import { ApiError, api } from '../../services/api'
 
-const schema = z.object({ display_name: z.string().min(1, 'Enter your name').max(80), username: z.string().min(3).max(40).regex(/^[a-zA-Z0-9_]+$/, 'Use letters, numbers, and underscores'), email: z.email('Enter a valid email'), password: z.string().min(12, 'Use at least 12 characters').regex(/[A-Za-z]/, 'Add a letter').regex(/[0-9]/, 'Add a number'), confirm_age_18: z.literal(true, { error: 'You must be at least 18 to create an account' }), accept_terms: z.literal(true, { error: 'Accept the Terms of Use to continue' }), accept_community_standards: z.literal(true, { error: 'Accept the Community Standards to continue' }) })
+const schema = z.object({ display_name: z.string().min(1, 'Enter your name').max(80), username: z.string().min(3).max(40).regex(/^[a-zA-Z0-9_]+$/, 'Use letters, numbers, and underscores'), email: z.email('Enter a valid email'), password: z.string().min(8, 'Use at least 8 characters').regex(/[A-Za-z]/, 'Add a letter').regex(/[0-9]/, 'Add a number'), confirm_age_18: z.literal(true, { error: 'You must be at least 18 to create an account' }), accept_terms: z.literal(true, { error: 'Accept the Terms of Use to continue' }), accept_community_standards: z.literal(true, { error: 'Accept the Community Standards to continue' }) })
 type FormData = z.infer<typeof schema>
 
 export function RegisterPage() {
