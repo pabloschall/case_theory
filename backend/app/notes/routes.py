@@ -122,7 +122,7 @@ async def list_timeline_entries(
         Depends(require_case_access),
         Depends(
             require_permission(
-                "timeline.write",
+                "timeline.private_write",
                 required_tier=2,
                 message="Creating timeline entries requires a paid plan",
             )
@@ -144,7 +144,7 @@ async def create_timeline_entry(
     dependencies=[
         Depends(verify_csrf),
         Depends(require_case_access),
-        Depends(require_permission("timeline.write", required_tier=2)),
+        Depends(require_permission("timeline.private_write", required_tier=2)),
     ],
 )
 async def update_timeline_entry(
@@ -163,7 +163,7 @@ async def update_timeline_entry(
     dependencies=[
         Depends(verify_csrf),
         Depends(require_case_access),
-        Depends(require_permission("timeline.write", required_tier=2)),
+        Depends(require_permission("timeline.private_write", required_tier=2)),
     ],
 )
 async def delete_timeline_entry(

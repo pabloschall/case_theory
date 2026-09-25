@@ -130,6 +130,7 @@ export const api = {
   relationships: (caseId: string) => request<PersonRelationship[]>(`/cases/${caseId}/relationships`),
   person: (caseId: string, personId: string) => request<CasePerson>(`/cases/${caseId}/people/${personId}`),
   personEvidence: (caseId: string, personId: string) => request<Evidence[]>(`/cases/${caseId}/people/${personId}/evidence`),
+  attachPersonEvidence: (caseId: string, personId: string, evidenceId: string) => request<void>(`/cases/${caseId}/people/${personId}/evidence`, { method: 'POST', body: JSON.stringify({ evidence_id: evidenceId }) }),
   personNotes: (caseId: string, personId: string) => request<PersonNote[]>(`/cases/${caseId}/people/${personId}/notes`),
   createPersonNote: (caseId: string, personId: string, body: string) => request<PersonNote>(`/cases/${caseId}/people/${personId}/notes`, { method: 'POST', body: JSON.stringify({ body }) }),
   updatePersonNote: (caseId: string, personId: string, noteId: string, body: string) => request<PersonNote>(`/cases/${caseId}/people/${personId}/notes/${noteId}`, { method: 'PATCH', body: JSON.stringify({ body }) }),

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user, verify_csrf
 from app.cases.dependencies import require_public_case_access
 from app.db.session import get_db
-from app.evidence.schemas import EvidenceRead
+from app.evidence.schemas import EvidenceLinkRequest, EvidenceRead
 from app.people.schemas import (
     PersonCreate,
     PersonNoteCreate,
@@ -126,6 +126,21 @@ async def person_evidence(
     case_id: uuid.UUID, person_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ) -> list[EvidenceRead]:
     return await PeopleService(db).evidence(case_id, person_id)
+
+
+@router.post(
+    "/people/{person_id}/evidence",
+    status_code=204,
+    dependencies=[Depends(verify_csrf), Depends(require_permission("people.write"))],
+)
+async def attach_person_evidence(
+    case_id: uuid.UUID,
+    person_id: uuid.UUID,
+    data: EvidenceLinkRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    await PeopleService(db).attach_evidence(case_id, person_id, data.evidence_id, user.id)
 
 
 @router.get("/people/{person_id}/notes", response_model=list[PersonNoteRead])

@@ -32,7 +32,7 @@ The API stores only SHA-256 hashes of one-time verification and password-reset t
 
 Guests can continue to the Case Directory to search public cases and read their overviews and timelines. Signed-in users can follow cases and use the collaborative workspace. **My Desk** contains only cases the current user explicitly follows, while **My Cases** contains cases they own. Creating a case does not automatically follow it.
 
-Guests have read-only access to public case records. Manual public cases are unlimited. Other case creation uses a weekly allowance that resets Monday at 00:00 UTC: one case for free accounts and five for paid accounts. My Notes and My Timeline are private to the signed-in user. Free accounts can open these tabs in read-only mode; publishing and managing entries requires a paid plan.
+Guests have read-only access to public case records. Manual public cases are unlimited. Other case creation uses a weekly allowance that resets Monday at 00:00 UTC: one case for free accounts and five for paid accounts. Free and paid accounts can add shared case timeline events and link case evidence to people. My Notes and My Timeline are private to the signed-in user. Free accounts can open these private tabs in read-only mode; publishing and managing private entries requires a paid plan.
 
 ## Development demo accounts
 

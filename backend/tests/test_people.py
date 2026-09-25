@@ -93,6 +93,28 @@ async def test_people_relationships_review_and_notes(client: AsyncClient, monkey
     assert confirmed.status_code == 200
     assert confirmed.json()["review_status"] == "confirmed"
 
+    created_evidence = await client.post(
+        f"/api/v1/cases/{case_id}/evidence/links",
+        headers={"X-CSRF-Token": token},
+        json={
+            "title": "Harbor camera report",
+            "url": "https://example.gov/harbor-camera",
+            "evidence_type": "article",
+        },
+    )
+    assert created_evidence.status_code == 201
+    for _ in range(2):
+        attached = await client.post(
+            f"/api/v1/cases/{case_id}/people/{primary.json()['id']}/evidence",
+            headers={"X-CSRF-Token": token},
+            json={"evidence_id": created_evidence.json()["id"]},
+        )
+        assert attached.status_code == 204
+
     evidence = await client.get(f"/api/v1/cases/{case_id}/people/{primary.json()['id']}/evidence")
     assert evidence.status_code == 200
-    assert evidence.json() == []
+    assert [item["id"] for item in evidence.json()] == [created_evidence.json()["id"]]
+
+    people = await client.get(f"/api/v1/cases/{case_id}/people")
+    linked_person = next(item for item in people.json() if item["id"] == primary.json()["id"])
+    assert linked_person["evidence_count"] == 1

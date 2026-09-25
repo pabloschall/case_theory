@@ -46,6 +46,7 @@ PERMISSIONS = {
     "evidence.upload": "Upload evidence",
     "timeline.read": "Read case timelines",
     "timeline.write": "Suggest timeline events",
+    "timeline.private_write": "Create and manage private personal timeline entries",
     "timeline.approve": "Approve timeline events",
     "map.write": "Add and review case locations",
     "people.read": "View case people and relationships",
@@ -69,7 +70,7 @@ PLAN_DEFINITIONS = {
         "collaborator_limit": -1,
         "daily_ai_case_limit": -1,
         "lifetime_ai_case_limit": -1,
-        "permissions": set(PERMISSIONS) - {"admin.access", "notes.write", "timeline.write"},
+        "permissions": set(PERMISSIONS) - {"admin.access", "notes.write", "timeline.private_write"},
     },
     "investigator": {
         "name": "Investigator",

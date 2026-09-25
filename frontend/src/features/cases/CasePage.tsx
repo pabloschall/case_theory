@@ -68,6 +68,7 @@ export function CasePage() {
     const canResearch = currentUser?.permissions.includes('ai.research') ?? false
     const canInvite = currentUser?.permissions.includes('case.invite') ?? false
     const canWriteTimeline = currentUser?.permissions.includes('timeline.write') ?? false
+    const canWritePrivateTimeline = currentUser?.permissions.includes('timeline.private_write') ?? false
     const canUploadEvidence = currentUser?.permissions.includes('evidence.upload') ?? false
     const canWriteDiscussion = currentUser?.permissions.includes('discussion.write') ?? false
     const canWriteMap = currentUser?.permissions.includes('map.write') ?? false
@@ -130,7 +131,7 @@ export function CasePage() {
              <DiscussionPanel caseId={item.id} readOnly={!canWriteDiscussion}/>} {tab === 'Map' && <MapPanel caseId={item.id} readOnly={!canWriteMap}/>} {tab === 'People' &&
             (canViewPeople ? <PeoplePanel caseId={item.id} readOnly={!currentUser}/> : <UpgradePanel title="People & Relationships is locked" description="This private case is available only to its members."/>)} {tab === 'My Notes' &&
             <MyNotesPanel caseId={item.id} canWrite={canWriteNotes} isAuthenticated={Boolean(currentUser)}/>} {tab === 'My Timeline' &&
-            <MyTimelinePanel caseId={item.id} canWrite={canWriteTimeline} isAuthenticated={Boolean(currentUser)}/>}</div>
+            <MyTimelinePanel caseId={item.id} canWrite={canWritePrivateTimeline} isAuthenticated={Boolean(currentUser)}/>}</div>
     </div>
 }
 

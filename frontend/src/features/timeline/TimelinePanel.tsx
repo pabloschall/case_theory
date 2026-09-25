@@ -3,6 +3,7 @@ import {useMutation} from '@tanstack/react-query'
 import {CalendarPlus, ExternalLink, Plus} from 'lucide-react'
 import {useState} from 'react'
 import {useForm} from 'react-hook-form'
+import {Link} from 'react-router'
 import {z} from 'zod'
 import {queryClient} from '../../lib/query'
 import {ApiError, api} from '../../services/api'
@@ -10,7 +11,6 @@ import type {CaseDetail} from '../../types'
 import {EvidenceCard} from '../evidence/EvidenceCard'
 import {EvidencePicker} from '../evidence/EvidencePicker'
 import {LinkedPeople, PersonPicker} from '../people/PersonPicker'
-import {UpgradeButton} from '../../components/ui/Visual'
 
 const eventSchema = z.object({
     occurred_on: z.iso.date('Choose a valid date'),
@@ -55,7 +55,7 @@ export function TimelinePanel({item, readOnly = false}: { item: CaseDetail; read
     return <section className="card p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
             <div><p className="eyebrow">Case chronology</p><h2 className="section-title mt-2">Timeline</h2></div>
-            {readOnly ? <UpgradeButton description="Adding timeline events and linking evidence are available on the Investigator plan.">Add event</UpgradeButton> : <button type="button" onClick={() => {
+            {readOnly ? <Link to="/login" className="secondary-button text-xs">Sign in to add event</Link> : <button type="button" onClick={() => {
                 setCreating((value) => !value);
                 setSelected([]);
                 setPersonIds([])

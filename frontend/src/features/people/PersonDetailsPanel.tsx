@@ -5,6 +5,7 @@ import { queryClient } from '../../lib/query'
 import { api } from '../../services/api'
 import type { CasePerson, PersonRelationship } from '../../types'
 import { EvidenceCard } from '../evidence/EvidenceCard'
+import { EvidencePicker } from '../evidence/EvidencePicker'
 import { categoryConfig } from './config'
 import { Avatar } from './PeopleList'
 
@@ -19,7 +20,7 @@ export function PersonDetailsPanel({ caseId, person, people, relationships, insp
       {inspectedRelationship && (inspectedRelationship.source_person_id === person.id || inspectedRelationship.target_person_id === person.id) && <RelationshipNotice relationship={inspectedRelationship} caseId={caseId} readOnly={readOnly}/>} 
     </div>
     <div className="flex overflow-x-auto border-y border-subtle px-3">{(['overview', 'connections', 'evidence', 'notes'] as DetailTab[]).map((value) => <button type="button" key={value} onClick={() => setTab(value)} className={`min-h-11 shrink-0 border-b-2 px-3 text-[10px] font-semibold capitalize transition ${tab === value ? 'border-accent text-accent' : 'border-transparent text-muted hover:text-primary'}`}>{value}{value === 'connections' ? ` ${direct.length}` : value === 'evidence' ? ` ${person.evidence_count}` : value === 'notes' ? ` ${person.notes_count}` : ''}</button>)}</div>
-    <div className="p-5">{tab === 'overview' && <Overview person={person} onEvidence={() => setTab('evidence')}/>} {tab === 'connections' && <Connections person={person} people={people} relationships={direct} caseId={caseId} onSelect={onSelect} readOnly={readOnly}/>} {tab === 'evidence' && <PersonEvidence caseId={caseId} person={person}/>} {tab === 'notes' && <PersonNotes caseId={caseId} person={person} readOnly={readOnly}/>}</div>
+    <div className="p-5">{tab === 'overview' && <Overview person={person} onEvidence={() => setTab('evidence')}/>} {tab === 'connections' && <Connections person={person} people={people} relationships={direct} caseId={caseId} onSelect={onSelect} readOnly={readOnly}/>} {tab === 'evidence' && <PersonEvidence caseId={caseId} person={person} readOnly={readOnly}/>} {tab === 'notes' && <PersonNotes caseId={caseId} person={person} readOnly={readOnly}/>}</div>
   </section>
 }
 
@@ -41,12 +42,14 @@ function Connections({ person, people, relationships, caseId, onSelect, readOnly
   return <div className="space-y-2">{relationships.map((relationship) => { const otherId = relationship.source_person_id === person.id ? relationship.target_person_id : relationship.source_person_id; const other = people.find((item) => item.id === otherId); if (!other) return null; return <div key={relationship.id} className="rounded-lg border border-subtle bg-background/30 p-3"><button type="button" onClick={() => onSelect(other.id)} className="flex w-full items-center gap-3 text-left"><Avatar person={other}/><span className="min-w-0 flex-1"><strong className="block truncate text-xs text-primary">{other.name}</strong><span className="mt-0.5 block text-[10px] text-muted">{relationship.label}</span></span><ArrowRight size={14} className="text-muted"/></button>{relationship.description && <p className="mt-2 text-[10px] leading-5 text-secondary">{relationship.description}</p>}{relationship.source_url && <a href={relationship.source_url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-[10px] text-blue"><ExternalLink size={10}/>Supporting source</a>}{!readOnly && relationship.ai_suggested && relationship.review_status === 'suggested' && <div className="mt-3 flex gap-2 border-t border-subtle pt-2"><button type="button" onClick={() => review.mutate({ id: relationship.id, status: 'confirmed' })} className="ghost-button min-h-8 px-2 text-[9px] text-success"><Check size={12}/>Confirm</button><button type="button" onClick={() => review.mutate({ id: relationship.id, status: 'rejected' })} className="ghost-button min-h-8 px-2 text-[9px] text-danger"><X size={12}/>Reject</button></div>}</div> })}</div>
 }
 
-function PersonEvidence({ caseId, person }: { caseId: string; person: CasePerson }) {
+function PersonEvidence({ caseId, person, readOnly }: { caseId: string; person: CasePerson; readOnly: boolean }) {
+  const [linking, setLinking] = useState(false)
+  const [selected, setSelected] = useState<string[]>([])
   const query = useQuery({ queryKey: ['case', caseId, 'people', person.id, 'evidence'], queryFn: () => api.personEvidence(caseId, person.id) })
+  const attach = useMutation({ mutationFn: () => api.attachPersonEvidence(caseId, person.id, selected[0]), onSuccess: async () => { setSelected([]); setLinking(false); await Promise.all([queryClient.invalidateQueries({ queryKey: ['case', caseId, 'people', person.id, 'evidence'] }), queryClient.invalidateQueries({ queryKey: ['case', caseId, 'people'] })]) } })
   if (query.isLoading) return <Loading/>
   if (query.isError) return <p className="error-banner">Evidence could not be loaded.</p>
-  if (!query.data?.length) return <PanelEmpty icon={FileText} text="No evidence is linked to this person yet."/>
-  return <div className="space-y-2">{query.data.map((item) => <EvidenceCard key={item.id} caseId={caseId} item={item} compact/>)}</div>
+  return <div>{!readOnly && <button type="button" onClick={() => { setLinking((value) => !value); setSelected([]) }} className="secondary-button mb-3 w-full text-xs"><Link2 size={14}/>{linking ? 'Cancel' : 'Link case evidence'}</button>}{linking && <div className="mb-4"><EvidencePicker caseId={caseId} selected={selected} onToggle={(id) => setSelected([id])}/><button type="button" disabled={!selected[0] || attach.isPending} onClick={() => attach.mutate()} className="primary-button mt-2 min-h-10 text-xs">{attach.isPending ? 'Linking…' : 'Link to person'}</button>{attach.error && <p role="alert" className="mt-2 text-xs text-danger">Evidence could not be linked.</p>}</div>}{query.data?.length ? <div className="space-y-2">{query.data.map((item) => <EvidenceCard key={item.id} caseId={caseId} item={item} compact/>)}</div> : !linking && <PanelEmpty icon={FileText} text="No evidence is linked to this person yet."/>}</div>
 }
 
 function PersonNotes({ caseId, person, readOnly }: { caseId: string; person: CasePerson; readOnly: boolean }) {

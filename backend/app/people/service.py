@@ -159,6 +159,40 @@ class PeopleService:
         ).scalars()
         return [to_evidence_read(item) for item in evidence]
 
+    async def attach_evidence(
+        self,
+        case_id: uuid.UUID,
+        person_id: uuid.UUID,
+        evidence_id: uuid.UUID,
+        user_id: uuid.UUID,
+    ) -> None:
+        await self._person(case_id, person_id)
+        evidence = await self.db.scalar(
+            select(Evidence).where(
+                Evidence.id == evidence_id,
+                Evidence.case_id == case_id,
+                Evidence.processing_status == "available",
+                Evidence.moderation_status == "visible",
+            )
+        )
+        if evidence is None:
+            raise AppError(422, "invalid_evidence", "Evidence must be available in this case")
+        existing = await self.db.scalar(
+            select(PersonEvidence.id).where(
+                PersonEvidence.person_id == person_id,
+                PersonEvidence.evidence_id == evidence_id,
+            )
+        )
+        if existing is None:
+            self.db.add(
+                PersonEvidence(
+                    person_id=person_id,
+                    evidence_id=evidence_id,
+                    created_by_user_id=user_id,
+                )
+            )
+            await self.db.commit()
+
     async def notes(self, case_id: uuid.UUID, person_id: uuid.UUID) -> list[PersonNoteRead]:
         await self._person(case_id, person_id)
         notes = (

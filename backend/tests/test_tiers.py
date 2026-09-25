@@ -39,9 +39,7 @@ async def _set_plan(user_id: str, plan_code: str, *, verified: bool = True) -> N
     async with SessionFactory() as db:
         user = await db.get(User, parsed_user_id)
         plan = await db.scalar(select(SubscriptionPlan).where(SubscriptionPlan.code == plan_code))
-        subscription = await db.scalar(
-            select(UserSubscription).where(UserSubscription.user_id == parsed_user_id)
-        )
+        subscription = await db.scalar(select(UserSubscription).where(UserSubscription.user_id == parsed_user_id))
         assert user is not None and plan is not None and subscription is not None
         user.is_verified = verified
         subscription.plan_id = plan.id
@@ -72,9 +70,14 @@ async def test_free_tier_manual_public_cases_are_unlimited_and_ai_is_weekly_limi
     timeline = await client.post(
         f"/api/v1/cases/{case_id}/timeline",
         headers={"X-CSRF-Token": token},
-        json={"occurred_on": "2026-01-01", "title": "Blocked", "description": "Blocked"},
+        json={
+            "occurred_on": "2026-01-01",
+            "title": "Free timeline event",
+            "description": "Free accounts can contribute to the shared timeline.",
+        },
     )
-    assert timeline.status_code == 403
+    assert timeline.status_code == 201
+    assert timeline.json()["title"] == "Free timeline event"
     assert (await client.get(f"/api/v1/cases/{case_id}/people")).status_code == 200
     assert (await client.get("/api/v1/messages/conversations")).status_code == 200
     own_notes = await client.get(f"/api/v1/cases/{case_id}/notes")
@@ -137,9 +140,7 @@ async def test_free_tier_manual_public_cases_are_unlimited_and_ai_is_weekly_limi
     assert exhausted.json()["error"]["details"]["period"] == "weekly"
 
 
-async def test_paid_tier_can_create_five_cases_per_utc_week(
-    client: AsyncClient, monkeypatch: MonkeyPatch
-) -> None:
+async def test_paid_tier_can_create_five_cases_per_utc_week(client: AsyncClient, monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr(case_routes, "generate_case", StubTask())
     token = (await client.get("/api/v1/auth/csrf")).json()["csrf_token"]
     user = await _register(client, token, "investigator")
