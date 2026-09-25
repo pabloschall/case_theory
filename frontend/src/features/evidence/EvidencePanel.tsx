@@ -5,6 +5,7 @@ import {queryClient} from '../../lib/query'
 import {ApiError, api} from '../../services/api'
 import {EvidenceCard} from './EvidenceCard'
 import {UpgradeButton} from '../../components/ui/Visual'
+import {PersonPicker} from '../people/PersonPicker'
 
 export function EvidencePanel({caseId, readOnly = false, canComment = false}: { caseId: string; readOnly?: boolean; canComment?: boolean }) {
     const [mode, setMode] = useState<'file' | 'link' | null>(null)
@@ -55,6 +56,7 @@ export function EvidencePanel({caseId, readOnly = false, canComment = false}: { 
 
 function UploadForm({caseId, done}: { caseId: string; done: () => Promise<void> }) {
     const [error, setError] = useState('')
+    const [personIds, setPersonIds] = useState<string[]>([])
     const mutation = useMutation({
         mutationFn: async (form: FormData) => {
             const file = form.get('file') as File;
@@ -64,7 +66,8 @@ function UploadForm({caseId, done}: { caseId: string; done: () => Promise<void> 
                 description: String(form.get('description') || '') || undefined,
                 filename: file.name,
                 content_type: file.type || 'application/octet-stream',
-                file_size: file.size
+                file_size: file.size,
+                person_ids: personIds
             });
             const response = await fetch(ticket.upload_url, {
                 method: ticket.upload_method,
@@ -89,7 +92,10 @@ function UploadForm({caseId, done}: { caseId: string; done: () => Promise<void> 
                                                                       accept=".pdf,.txt,.csv,.docx,.png,.jpg,.jpeg,.webp,.mp3,.wav,.mp4"
                                                                       className="field mt-2 file:mr-3 file:rounded-md file:border-0 file:bg-accent file:px-3 file:py-1 file:text-xs file:font-semibold file:text-background"/></label>
         </div>
-        <Field name="description" label="Description (optional)"/><ErrorText value={error}/>
+        <Field name="description" label="Description (optional)"/>
+        <div className="mt-4"><PersonPicker caseId={caseId} selected={personIds}
+                                              onToggle={(id) => setPersonIds((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id])}/></div>
+        <ErrorText value={error}/>
         <button disabled={mutation.isPending}
                 className="primary-button mt-4 text-xs">{mutation.isPending ? 'Validating upload…' : 'Upload evidence'}</button>
         <p className="metadata mt-3 text-[10px]">PDF, Office document, text, image, audio, or MP4 · 25 MB maximum</p>
@@ -98,6 +104,7 @@ function UploadForm({caseId, done}: { caseId: string; done: () => Promise<void> 
 
 function LinkForm({caseId, done}: { caseId: string; done: () => Promise<void> }) {
     const [error, setError] = useState('')
+    const [personIds, setPersonIds] = useState<string[]>([])
     const mutation = useMutation({
         mutationFn: (form: FormData) => {
             const url = String(form.get('url'));
@@ -106,7 +113,8 @@ function LinkForm({caseId, done}: { caseId: string; done: () => Promise<void> })
                 title: String(form.get('title')),
                 description: String(form.get('description') || '') || undefined,
                 url,
-                evidence_type: youtube ? 'video' : 'article'
+                evidence_type: youtube ? 'video' : 'article',
+                person_ids: personIds
             })
         },
         onSuccess: done,
@@ -121,7 +129,10 @@ function LinkForm({caseId, done}: { caseId: string; done: () => Promise<void> })
         public link</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2"><Field name="title" label="Evidence title" required/><Field
             name="url" label="YouTube or website URL" type="url" required/></div>
-        <Field name="description" label="Why this matters (optional)"/><ErrorText value={error}/>
+        <Field name="description" label="Why this matters (optional)"/>
+        <div className="mt-4"><PersonPicker caseId={caseId} selected={personIds}
+                                              onToggle={(id) => setPersonIds((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id])}/></div>
+        <ErrorText value={error}/>
         <button disabled={mutation.isPending}
                 className="primary-button mt-4 text-xs">{mutation.isPending ? 'Saving…' : 'Save link'}</button>
     </form>

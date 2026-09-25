@@ -70,6 +70,17 @@ async def test_upload_link_and_reuse_evidence(client: AsyncClient, monkeypatch: 
                 json={"victim_names": "Fictional Evidence Case"},
             )
         ).json()["id"]
+        person = await client.post(
+            f"/api/v1/cases/{case_id}/people",
+            headers={"X-CSRF-Token": token},
+            json={
+                "name": "Morgan Vale",
+                "role": "Witness",
+                "category": "witness",
+            },
+        )
+        assert person.status_code == 201
+        person_id = person.json()["id"]
 
         external = await client.post(
             f"/api/v1/cases/{case_id}/evidence/links",
@@ -78,6 +89,7 @@ async def test_upload_link_and_reuse_evidence(client: AsyncClient, monkeypatch: 
                 "title": "Public video archive",
                 "url": "https://www.youtube.com/watch?v=fictional",
                 "evidence_type": "video",
+                "person_ids": [person_id],
             },
         )
         assert external.status_code == 201
@@ -91,6 +103,7 @@ async def test_upload_link_and_reuse_evidence(client: AsyncClient, monkeypatch: 
                 "filename": "bulletin.pdf",
                 "content_type": "application/pdf",
                 "file_size": 28,
+                "person_ids": [person_id],
             },
         )
         assert ticket.status_code == 201
@@ -103,10 +116,14 @@ async def test_upload_link_and_reuse_evidence(client: AsyncClient, monkeypatch: 
         assert completed.status_code == 200
         assert completed.json()["processing_status"] == "available"
         assert completed.json()["mime_type"] == "application/pdf"
+        person_evidence = await client.get(f"/api/v1/cases/{case_id}/people/{person_id}/evidence")
+        assert person_evidence.status_code == 200
+        assert {item["id"] for item in person_evidence.json()} == {
+            external_id,
+            upload_id,
+        }
 
-        first_page = await client.get(
-            f"/api/v1/cases/{case_id}/evidence", params={"limit": 1}
-        )
+        first_page = await client.get(f"/api/v1/cases/{case_id}/evidence", params={"limit": 1})
         assert first_page.status_code == 200
         assert first_page.json()["total"] == 2
         assert first_page.json()["has_more"] is True
@@ -163,9 +180,7 @@ async def test_upload_link_and_reuse_evidence(client: AsyncClient, monkeypatch: 
         )
         assert deleted_comment.status_code == 204
         evidence_after_comment = await client.get(f"/api/v1/cases/{case_id}/evidence")
-        commented_item = next(
-            item for item in evidence_after_comment.json()["items"] if item["id"] == external_id
-        )
+        commented_item = next(item for item in evidence_after_comment.json()["items"] if item["id"] == external_id)
         assert commented_item["comment_count"] == 1
 
         async with SessionFactory() as db:

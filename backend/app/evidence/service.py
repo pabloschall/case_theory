@@ -21,6 +21,7 @@ from app.evidence.schemas import (
     UploadRequest,
     UploadTicket,
 )
+from app.people.models import Person, PersonEvidence
 from app.storage.base import StorageProvider
 from app.users.models import User
 
@@ -42,9 +43,7 @@ ALLOWED_UPLOADS: dict[str, set[str]] = {
 }
 
 
-def to_evidence_read(
-    item: Evidence, *, include_details: bool = True, comment_count: int = 0
-) -> EvidenceRead:
+def to_evidence_read(item: Evidence, *, include_details: bool = True, comment_count: int = 0) -> EvidenceRead:
     result = EvidenceRead.model_validate(item).model_copy(update={"comment_count": comment_count})
     if include_details:
         return result
@@ -79,9 +78,7 @@ class EvidenceService:
         include_details: bool = True,
     ) -> tuple[list[EvidenceRead], uuid.UUID | None, bool, int]:
         await self._require_case(case_id)
-        statement = select(Evidence).where(
-            Evidence.case_id == case_id, Evidence.moderation_status == "visible"
-        )
+        statement = select(Evidence).where(Evidence.case_id == case_id, Evidence.moderation_status == "visible")
         if cursor is not None:
             anchor = await self.db.scalar(
                 select(Evidence).where(
@@ -134,9 +131,7 @@ class EvidenceService:
         next_cursor = records[-1].id if has_more and records else None
         return items, next_cursor, has_more, total
 
-    async def create_external(
-        self, case_id: uuid.UUID, user: User, data: ExternalEvidenceCreate
-    ) -> EvidenceRead:
+    async def create_external(self, case_id: uuid.UUID, user: User, data: ExternalEvidenceCreate) -> EvidenceRead:
         await self._require_case(case_id)
         item = Evidence(
             case_id=case_id,
@@ -148,6 +143,8 @@ class EvidenceService:
             processing_status="available",
         )
         self.db.add(item)
+        await self.db.flush()
+        await self._link_people(case_id, item.id, data.person_ids, user.id)
         await self.db.commit()
         await self.db.refresh(item)
         return to_evidence_read(item)
@@ -175,6 +172,7 @@ class EvidenceService:
             file_size=data.file_size,
         )
         self.db.add(item)
+        await self._link_people(case_id, item.id, data.person_ids, user.id)
         await self.db.commit()
         upload_url, method = await self.storage.create_upload_url(object_key, data.content_type)
         return UploadTicket(
@@ -287,9 +285,7 @@ class EvidenceService:
                 )
             )
         result = await self.db.scalars(
-            statement.order_by(EvidenceComment.created_at.desc(), EvidenceComment.id.desc()).limit(
-                limit + 1
-            )
+            statement.order_by(EvidenceComment.created_at.desc(), EvidenceComment.id.desc()).limit(limit + 1)
         )
         records = list(result)
         has_more = len(records) > limit
@@ -375,10 +371,45 @@ class EvidenceService:
         if await self.db.scalar(select(Case.id).where(Case.id == case_id)) is None:
             raise AppError(404, "case_not_found", "Case was not found")
 
-    async def _case_owner(self, case_id: uuid.UUID) -> uuid.UUID:
-        owner_id = await self.db.scalar(
-            select(Case.created_by_user_id).where(Case.id == case_id)
+    async def _link_people(
+        self,
+        case_id: uuid.UUID,
+        evidence_id: uuid.UUID,
+        person_ids: builtins.list[uuid.UUID],
+        user_id: uuid.UUID,
+    ) -> None:
+        if not person_ids:
+            return
+        unique_ids = set(person_ids)
+        people = list(
+            (
+                await self.db.execute(
+                    select(Person).where(
+                        Person.case_id == case_id,
+                        Person.id.in_(unique_ids),
+                    )
+                )
+            ).scalars()
         )
+        if len(people) != len(unique_ids):
+            raise AppError(
+                422,
+                "invalid_people",
+                "One or more people do not belong to this case",
+            )
+        self.db.add_all(
+            [
+                PersonEvidence(
+                    person_id=person.id,
+                    evidence_id=evidence_id,
+                    created_by_user_id=user_id,
+                )
+                for person in people
+            ]
+        )
+
+    async def _case_owner(self, case_id: uuid.UUID) -> uuid.UUID:
+        owner_id = await self.db.scalar(select(Case.created_by_user_id).where(Case.id == case_id))
         if owner_id is None:
             raise AppError(404, "case_not_found", "Case was not found")
         return owner_id
@@ -397,10 +428,7 @@ class EvidenceService:
                 username=comment.author.username,
                 display_name=comment.author.profile.display_name,
             ),
-            can_delete=bool(
-                user
-                and (user.is_admin or user.id in {comment.author_user_id, owner_id})
-            ),
+            can_delete=bool(user and (user.is_admin or user.id in {comment.author_user_id, owner_id})),
             created_at=comment.created_at,
             updated_at=comment.updated_at,
         )

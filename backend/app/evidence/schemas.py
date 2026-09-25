@@ -41,6 +41,7 @@ class ExternalEvidenceCreate(BaseModel):
     description: str | None = Field(default=None, max_length=3000)
     url: HttpUrl
     evidence_type: EvidenceType = "link"
+    person_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
 
     @field_validator("title")
     @classmethod
@@ -56,6 +57,7 @@ class UploadRequest(BaseModel):
     filename: str = Field(min_length=1, max_length=500)
     content_type: str = Field(min_length=3, max_length=150)
     file_size: int = Field(gt=0)
+    person_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
 
     @field_validator("title", "filename", "content_type")
     @classmethod

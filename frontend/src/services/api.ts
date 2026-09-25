@@ -98,8 +98,8 @@ export const api = {
     if (cursor) params.set('cursor', cursor)
     return request<CursorPage<Evidence>>(`/cases/${caseId}/evidence?${params.toString()}`)
   },
-  createEvidenceLink: (caseId: string, data: { title: string; description?: string; url: string; evidence_type: string }) => request<Evidence>(`/cases/${caseId}/evidence/links`, { method: 'POST', body: JSON.stringify(data) }),
-  requestEvidenceUpload: (caseId: string, data: { title: string; description?: string; filename: string; content_type: string; file_size: number }) => request<{ evidence: Evidence; upload_url: string; upload_method: 'POST' | 'PUT'; upload_headers: Record<string, string> }>(`/cases/${caseId}/evidence/uploads`, { method: 'POST', body: JSON.stringify(data) }),
+  createEvidenceLink: (caseId: string, data: { title: string; description?: string; url: string; evidence_type: string; person_ids?: string[] }) => request<Evidence>(`/cases/${caseId}/evidence/links`, { method: 'POST', body: JSON.stringify(data) }),
+  requestEvidenceUpload: (caseId: string, data: { title: string; description?: string; filename: string; content_type: string; file_size: number; person_ids?: string[] }) => request<{ evidence: Evidence; upload_url: string; upload_method: 'POST' | 'PUT'; upload_headers: Record<string, string> }>(`/cases/${caseId}/evidence/uploads`, { method: 'POST', body: JSON.stringify(data) }),
   completeEvidenceUpload: (caseId: string, evidenceId: string) => request<Evidence>(`/cases/${caseId}/evidence/${evidenceId}/complete`, { method: 'POST' }),
   evidenceUrl: (caseId: string, evidenceId: string) => request<{ url: string }>(`/cases/${caseId}/evidence/${evidenceId}/url`),
   evidenceComments: (caseId: string, evidenceId: string, cursor?: string, limit = 20) => {
