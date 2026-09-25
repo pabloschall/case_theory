@@ -40,4 +40,25 @@ describe('EvidenceCard', () => {
     expect(screen.getByRole('link', { name: /Open original source/ })).toHaveAttribute('href', evidence.source_url)
     expect(externalOpen).not.toHaveBeenCalled()
   })
+
+  it('opens generic web evidence through the publisher instead of a blocked iframe', () => {
+    const article = {
+      ...evidence,
+      id: 'evidence-article',
+      title: 'AP News report',
+      evidence_type: 'article',
+      source_url: 'https://apnews.com/article/example',
+    }
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={queryClient}><EvidenceCard caseId="case-1" item={article}/></QueryClientProvider>)
+
+    fireEvent.click(screen.getByRole('button', { name: /AP News report/ }))
+
+    expect(screen.getByText('View this source on its website')).toBeInTheDocument()
+    expect(screen.queryByTitle('AP News report evidence preview')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: /Open original source/ })).toHaveLength(2)
+    for (const link of screen.getAllByRole('link', { name: /Open original source/ })) {
+      expect(link).toHaveAttribute('href', article.source_url)
+    }
+  })
 })

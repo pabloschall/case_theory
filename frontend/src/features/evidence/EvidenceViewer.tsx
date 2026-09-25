@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { ApiError, api } from '../../services/api'
 import type { Evidence } from '../../types'
 
-type PreviewKind = 'image' | 'video' | 'audio' | 'pdf' | 'web' | 'unsupported'
+type PreviewKind = 'image' | 'video' | 'audio' | 'pdf' | 'youtube' | 'web' | 'unsupported'
 
 export function EvidenceViewer({ caseId, item, onClose }: { caseId: string; item: Evidence; onClose: () => void }) {
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(item.source_url)
@@ -56,7 +56,7 @@ export function EvidenceViewer({ caseId, item, onClose }: { caseId: string; item
             <div className="min-w-0"><p className="text-xs font-semibold text-primary">{item.original_filename || host(item.source_url)}</p>{item.description && <p className="mt-1 max-w-3xl break-words text-xs leading-5 text-secondary">{item.description}</p>}</div>
             <div className="flex flex-wrap gap-2"><span className="status-badge">{item.evidence_type.replaceAll('_', ' ')}</span><span className="status-badge">{item.verification_status.replaceAll('_', ' ')}</span>{item.ai_generated && <span className="ai-label">AI suggested</span>}</div>
           </div>
-          {preview.kind === 'web' && <p className="mt-3 text-[10px] leading-4 text-muted">The source is displayed inside Case Theory when its publisher permits embedding. Use “Open original source” if the publisher blocks the preview.</p>}
+          {preview.kind === 'web' && <p className="mt-3 text-[10px] leading-4 text-muted">External publishers control how their pages open. Case Theory links to the original page without copying or altering its content.</p>}
         </footer>
       </section>
     </div>,
@@ -69,17 +69,18 @@ function EvidencePreview({ kind, url, title }: { kind: PreviewKind; url: string;
   if (kind === 'video') return <div className="grid size-full place-items-center p-3 sm:p-6"><video src={url} controls playsInline className="max-h-full max-w-full"/></div>
   if (kind === 'audio') return <div className="grid size-full place-items-center p-6"><div className="card w-full max-w-xl p-6 text-center"><p className="font-display text-2xl text-primary">Audio evidence</p><audio src={url} controls className="mt-6 w-full"/></div></div>
   if (kind === 'unsupported') return <ViewerMessage icon={<FileQuestion className="text-blue"/>} title="Preview not supported" body="This file type cannot be displayed safely in the browser. Open the original file to inspect it."/>
-  return <iframe src={url} title={`${title} evidence preview`} className="size-full border-0 bg-white" sandbox={kind === 'web' ? 'allow-forms allow-popups allow-same-origin allow-scripts' : undefined} referrerPolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/>
+  if (kind === 'web') return <ViewerMessage icon={<ExternalLink className="text-blue"/>} title="View this source on its website" body="This publisher does not provide a dependable in-app preview." action={<a href={url} target="_blank" rel="noreferrer" className="primary-button mt-5 w-fit"><ExternalLink size={15}/> Open original source</a>}/>
+  return <iframe src={url} title={`${title} evidence preview`} className="size-full border-0 bg-white" referrerPolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/>
 }
 
-function ViewerMessage({ icon, title, body }: { icon: ReactNode; title: string; body: string }) {
-  return <div className="grid size-full place-items-center p-8 text-center"><div>{icon}<h3 className="empty-title mt-4">{title}</h3><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">{body}</p></div></div>
+function ViewerMessage({ icon, title, body, action }: { icon: ReactNode; title: string; body: string; action?: ReactNode }) {
+  return <div className="grid size-full place-items-center p-8 text-center"><div className="flex flex-col items-center">{icon}<h3 className="empty-title mt-4">{title}</h3><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">{body}</p>{action}</div></div>
 }
 
 function getPreview(item: Evidence, value: string | null): { kind: PreviewKind; url: string } {
   if (!value) return { kind: 'unsupported', url: '' }
   const youtube = youtubeEmbed(value)
-  if (youtube) return { kind: 'web', url: youtube }
+  if (youtube) return { kind: 'youtube', url: youtube }
   const mime = item.mime_type?.toLowerCase() ?? ''
   const path = safePath(value).toLowerCase()
   if (mime.startsWith('image/') || /\.(png|jpe?g|webp|gif|avif)$/.test(path)) return { kind: 'image', url: value }
