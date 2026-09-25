@@ -78,7 +78,7 @@ services:
       target: development
     environment:
       VITE_API_URL: /api/v1
-      APP_NAME: ${APP_NAME:-Game Theory}
+      APP_NAME: ${APP_NAME:-Case Theory}
     volumes:
       - ./frontend:/app
       - frontend-modules:/app/node_modules

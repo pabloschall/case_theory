@@ -5,7 +5,7 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig(({ mode }) => {
   const rootEnv = loadEnv(mode, resolve(process.cwd(), '..'), '')
-  const appName = process.env.APP_NAME || rootEnv.APP_NAME || 'Game Theory'
+  const appName = process.env.APP_NAME || rootEnv.APP_NAME || 'Case Theory'
 
   return {
     define: { __APP_NAME__: JSON.stringify(appName) },

@@ -22,7 +22,7 @@ def test_send_email_posts_to_mailgun(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda: Settings(
             mailgun_base_url="https://api.mailgun.net/v3/mg.example.com/",
             mailgun_api_key="key-secret",
-            mailgun_from_email="Game Theory <mail@mg.example.com>",
+            mailgun_from_email="Case Theory <mail@mg.example.com>",
         ),
     )
     monkeypatch.setattr("app.auth.tasks.httpx.post", post)
@@ -32,7 +32,7 @@ def test_send_email_posts_to_mailgun(monkeypatch: pytest.MonkeyPatch) -> None:
     assert request["url"] == "https://api.mailgun.net/v3/mg.example.com/messages"
     assert request["auth"] == ("api", "key-secret")
     assert request["data"] == {
-        "from": "Game Theory <mail@mg.example.com>",
+        "from": "Case Theory <mail@mg.example.com>",
         "to": "reader@example.com",
         "subject": "Subject",
         "text": "Text",
