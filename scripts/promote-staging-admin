@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+
+if [ "$#" -ne 1 ]; then
+  echo "Usage: $0 EMAIL" >&2
+  echo "Register and verify this account in staging before running this command." >&2
+  exit 2
+fi
+
+email=$1
+case "$email" in
+  *@*.*) ;;
+  *)
+    echo "Enter a valid account email address." >&2
+    exit 2
+    ;;
+esac
+
+project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+
+"$project_root/scripts/gcloud" run jobs execute case-theory-stg-migration \
+  --project=case-theory \
+  --region=us-central1 \
+  --args="promote-admin,$email" \
+  --wait
+
+echo "Use the normal staging login page with $email; it now opens the admin workspace."

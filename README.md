@@ -46,6 +46,8 @@ The development seed creates three verified local accounts. They all use the pas
 
 These predictable accounts are created only when `ENVIRONMENT=development`; staging and production never seed them.
 
+Administrators use the same login page as every other account and are routed to the admin workspace after authentication. Staging does not create predictable credentials. Register and verify an account there, then grant its initial administrator access with `./scripts/promote-staging-admin you@example.com`.
+
 ## OpenAI case generation
 
 Add your key to the root `.env` file:

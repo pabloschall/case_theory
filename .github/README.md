@@ -33,6 +33,14 @@ After applying the infrastructure changes, seed the empty secrets and create the
 ./scripts/bootstrap-staging-secrets
 ```
 
+Staging and production do not create predictable administrator credentials. To create the first staging administrator, register through the site, verify that account's email, and promote it with the protected migration job:
+
+```bash
+./scripts/promote-staging-admin you@example.com
+```
+
+The command never handles the account password. Sign in through the normal staging login page; an administrator is routed to `/admin/users`. Running the command again for the same administrator is safe.
+
 Set `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, and `GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT` as repository variables so same-repository pull-request plans can read them. Scope `GCP_TERRAFORM_APPLY_SERVICE_ACCOUNT` to the protected `staging-infrastructure` environment. The remaining application deployment values may be scoped to the `staging` environment.
 
 The first Workload Identity pool and Terraform service account must be bootstrapped from an already authenticated workstation or Cloud Shell. After that one-time setup, GitHub Actions can plan and apply infrastructure without stored Google Cloud keys.

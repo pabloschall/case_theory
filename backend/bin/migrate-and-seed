@@ -1,5 +1,20 @@
 #!/bin/sh
 set -eu
 
-alembic upgrade head
-python -m app.db.seed
+case "${1:-migrate}" in
+  migrate)
+    alembic upgrade head
+    python -m app.db.seed
+    ;;
+  promote-admin)
+    if [ "$#" -ne 2 ]; then
+      echo "Usage: $0 promote-admin EMAIL" >&2
+      exit 2
+    fi
+    python -m app.db.promote_admin "$2"
+    ;;
+  *)
+    echo "Unknown operation: $1" >&2
+    exit 2
+    ;;
+esac
