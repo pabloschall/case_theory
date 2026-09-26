@@ -63,7 +63,7 @@ export function AppShell() {
 
   return <div className="min-h-dvh bg-transparent text-primary">
     <audio ref={greetingAudioRef} src="/greeting-female-trimmed.mp3" preload="auto" onPlay={() => setGreetingPlaying(true)} onPause={() => setGreetingPlaying(false)} onEnded={() => { setGreetingPlaying(false); setGreetingVisible(false) }}/>
-    <header className="sticky top-0 z-30 border-b border-subtle bg-navigation/95 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-default bg-navigation shadow-[0_8px_30px_rgba(0,0,0,.24)]">
       <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Brand to={canAccessAdmin ? '/admin/users' : '/cases'} />
         <nav className="hidden items-center gap-8 md:flex" aria-label="Workspace">
@@ -78,7 +78,7 @@ export function AppShell() {
       {navigationOpen && <nav className="border-t border-subtle bg-navigation p-4 md:hidden" aria-label="Mobile workspace">{mobileNavigation.map(({to,label}) => <Link onClick={() => setNavigationOpen(false)} key={to} to={to} className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold ${isActive(to) ? 'bg-accent-muted text-accent' : 'text-primary hover:bg-white/5'}`}>{label}{to === '/messages' && showMessengerDot && <span aria-label="Unread messages" className="size-2 rounded-full bg-red-500"/>}</Link>)}</nav>}
     </header>
     <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-12"><Outlet /></main>
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-subtle bg-navigation/95 px-2 pb-[max(.45rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden" aria-label="Primary">
+    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-default bg-navigation px-2 pb-[max(.45rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-16px_50px_rgba(0,0,0,.35)] md:hidden" aria-label="Primary">
       <div className="mx-auto grid max-w-md" style={{ gridTemplateColumns: `repeat(${mobileNavigation.length}, minmax(0, 1fr))` }}>{mobileNavigation.map(({to,label,icon:Icon}) => <Link key={to} to={to} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-medium transition duration-200 ${isActive(to) ? 'text-accent' : 'text-muted'}`}><span className="relative"><Icon size={18}/>{to === '/messages' && showMessengerDot && <span aria-label="Unread messages" className="absolute -right-2 -top-1 size-2 rounded-full bg-red-500"/>}</span>{label}</Link>)}</div>
     </nav>
     <ProgressionExperience enabled={authenticated}/>
