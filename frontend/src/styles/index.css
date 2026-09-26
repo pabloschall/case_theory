@@ -6,8 +6,7 @@
 
 :root { font-family: var(--font-ui); color: var(--text-primary); background: var(--bg-primary); font-synthesis: none; }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(circle at top, rgba(43, 91, 122, .34), transparent 48%), var(--bg-primary); }
-.app-navigation { background-color: #081B2B; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(circle at top, rgba(35, 48, 59, .45), transparent 45%), var(--bg-primary); }
 button, input, textarea, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; }
@@ -25,7 +24,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   border: 2px solid transparent;
   border-radius: 16px;
   background:
-    linear-gradient(rgba(18, 43, 62, .96), rgba(10, 30, 46, .98)) padding-box,
+    linear-gradient(rgba(16, 24, 32, .96), rgba(13, 21, 28, .98)) padding-box,
     linear-gradient(135deg, #6f4b17 0%, #d8a94b 16%, #f0d486 30%, #9b7028 48%, #e5bc62 67%, #76501a 84%, #d7a64a 100%) border-box;
   box-shadow:
     inset 0 0 0 1px rgba(255, 239, 190, .06),
