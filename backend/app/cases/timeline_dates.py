@@ -68,7 +68,8 @@ def parse_timeline_time(value: str) -> time | None:
 
     twenty_four_hour = re.search(r"\b([01]?\d|2[0-3]):([0-5]\d)\b", normalized)
     if twenty_four_hour:
-        return time(*(int(part) for part in twenty_four_hour.groups()))
+        hour_text, minute_text = twenty_four_hour.groups()
+        return time(int(hour_text), int(minute_text))
     return None
 
 

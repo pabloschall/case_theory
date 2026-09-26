@@ -116,9 +116,10 @@ class ProgressionService:
                 self.db.add(entry)
                 await self.db.flush()
         except IntegrityError:
-            return await self.db.scalar(
+            existing_entry: ProgressionLedgerEntry | None = await self.db.scalar(
                 select(ProgressionLedgerEntry).where(ProgressionLedgerEntry.event_key == event.event_key)
             )
+            return existing_entry
         if self.settings.progression_shadow_mode:
             return entry
 
