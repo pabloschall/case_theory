@@ -90,7 +90,6 @@ export function ResearcherChat({caseId, title}: {caseId: string; title: string})
             <p className="mt-2 text-sm leading-6 text-secondary">Ask about {title}. The researcher uses this case’s title and overview, searches public web sources, and links the sources it finds.</p>
         </div>
         <div className="flex-1 space-y-5 p-5 sm:p-6" aria-live="polite">
-            {messages.length === 0 && <p className="text-sm text-muted">What would you like to research about this case?</p>}
             {messages.map((message, index) => <div key={index} className={message.role === 'user' ? 'ml-auto max-w-[85%] rounded-xl bg-accent-muted p-4 text-sm text-primary' : 'max-w-[95%] rounded-xl border border-subtle bg-tertiary/50 p-4 text-sm text-secondary'}>
                 <p className="whitespace-pre-wrap leading-6">{message.content}</p>
                 {message.sources && message.sources.length > 0 && <div className="mt-4 border-t border-subtle pt-3">
