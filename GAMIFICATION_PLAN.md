@@ -2,6 +2,8 @@
 
 Status: product and technical proposal. No application behavior, database schema, or subscription rule changes are authorized by this document.
 
+![Rank badge concept](docs/assets/gamification-rank-badges-concept.png)
+
 ## Product goal
 
 The progression system should make Case Theory feel like a thoughtful investigation game without turning real cases, victims, or allegations into entertainment. Members earn Research XP by improving the quality, structure, and sourcing of the workspace. XP produces visible ranks, collectible badges, and feature gifts that match the research theme.
