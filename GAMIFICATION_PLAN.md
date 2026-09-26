@@ -184,6 +184,9 @@ Objectives should never ask members to identify a suspect, contact a person conn
 - Show the current rank and a compact XP meter in the account menu.
 - Show a small, dismissible XP receipt after a qualifying action: `+8 Research XP · Sourced timeline event`.
 - Use a single restrained rank-up animation with a reduced-motion version.
+- Reveal a newly earned badge in a short, dismissible achievement card with the badge icon, name, reason it was earned, and a `View badges` action. The reveal must never block saving or navigating.
+- Show each badge reveal once. If an award is processed after the member leaves the page or while the member is offline, deliver the same reveal from the unread notification on their next signed-in visit.
+- Queue simultaneous badge, rank, and gift awards and show them one at a time rather than stacking animations.
 - Open a Progression page from the account menu.
 
 ### Progression page
@@ -204,6 +207,7 @@ Objectives should never ask members to identify a suspect, contact a person conn
 ### Profiles
 
 - Members may display one Case Theory rank and up to three earned badges.
+- Every earned badge remains in the member's private collection even when it is not selected for the profile showcase.
 - Rank and badge visibility defaults to signed-in members only.
 - XP totals remain private by default; public profiles show the rank rather than the exact score.
 
