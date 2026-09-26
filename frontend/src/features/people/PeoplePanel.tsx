@@ -1,7 +1,7 @@
 import {zodResolver} from '@hookform/resolvers/zod'
 import {useMutation, useQuery} from '@tanstack/react-query'
-import {Filter, Plus, Search, UsersRound} from 'lucide-react'
-import {useCallback, useMemo, useState} from 'react'
+import {Filter, LayoutList, Network, Plus, Search, UsersRound} from 'lucide-react'
+import {lazy, Suspense, useCallback, useMemo, useState} from 'react'
 import {useForm} from 'react-hook-form'
 import {z} from 'zod'
 import {queryClient} from '../../lib/query'
@@ -10,6 +10,8 @@ import type {CasePerson, PersonRelationship} from '../../types'
 import {PersonDetailsPanel} from './PersonDetailsPanel'
 import {PeopleFilters, type PeopleFilter} from './PeopleFilters'
 import {PeopleList} from './PeopleList'
+
+const PeopleNetwork = lazy(async () => ({default: (await import('./PeopleNetwork')).PeopleNetwork}))
 
 const EMPTY_PEOPLE: CasePerson[] = []
 const EMPTY_RELATIONSHIPS: PersonRelationship[] = []
@@ -26,6 +28,8 @@ export function PeoplePanel({caseId, readOnly = false}: { caseId: string; readOn
     const [filter, setFilter] = useState<PeopleFilter>('all')
     const [search, setSearch] = useState('')
     const [selectedId, setSelectedId] = useState<string | null>(null)
+    const [inspectedRelationship, setInspectedRelationship] = useState<PersonRelationship | null>(null)
+    const [view, setView] = useState<'network' | 'list'>('network')
     const [creating, setCreating] = useState(false)
     const peopleQuery = useQuery({queryKey: ['case', caseId, 'people'], queryFn: () => api.people(caseId)})
     const relationshipQuery = useQuery({
@@ -40,7 +44,14 @@ export function PeoplePanel({caseId, readOnly = false}: { caseId: string; readOn
         return matchesFilter && (!term || `${person.name} ${person.role} ${person.summary ?? ''}`.toLowerCase().includes(term))
     }), [people, filter, search])
     const selected = people.find((person) => person.id === selectedId) ?? null
-    const select = useCallback((id: string) => setSelectedId(id), [])
+    const select = useCallback((id: string) => {
+        setSelectedId(id)
+        setInspectedRelationship(null)
+    }, [])
+    const inspectRelationship = useCallback((relationship: PersonRelationship) => {
+        setSelectedId(relationship.source_person_id)
+        setInspectedRelationship(relationship)
+    }, [])
 
     if (peopleQuery.isLoading || relationshipQuery.isLoading) return <div
         className="card grid min-h-[480px] place-items-center">
@@ -79,9 +90,13 @@ export function PeoplePanel({caseId, readOnly = false}: { caseId: string; readOn
             setSelectedId(id)
         }}/>}
 
-        {people.length > 0 &&
-            <div className="mt-4 lg:hidden"><PeopleFilters people={people} value={filter} onChange={setFilter} mobile/>
-            </div>}
+        {people.length > 0 && <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="lg:hidden"><PeopleFilters people={people} value={filter} onChange={setFilter} mobile/></div>
+            <div className="ml-auto inline-flex rounded-lg border border-default bg-surface p-1" aria-label="People view">
+                <button type="button" onClick={() => setView('network')} aria-pressed={view === 'network'} className={`ghost-button min-h-9 px-3 text-xs ${view === 'network' ? 'bg-accent-muted text-accent' : ''}`}><Network size={14}/>Network</button>
+                <button type="button" onClick={() => setView('list')} aria-pressed={view === 'list'} className={`ghost-button min-h-9 px-3 text-xs ${view === 'list' ? 'bg-accent-muted text-accent' : ''}`}><LayoutList size={14}/>List</button>
+            </div>
+        </div>}
         {!people.length ? !creating && <div className="card mt-5 grid min-h-[430px] place-items-center p-8 text-center">
             <div><UsersRound size={34} className="mx-auto text-muted"/><h3 className="empty-title mt-4">No people mapped
                 yet</h3><p className="mx-auto mt-2 max-w-md font-display text-lg text-secondary">Relationships become
@@ -98,11 +113,11 @@ export function PeoplePanel({caseId, readOnly = false}: { caseId: string; readOn
                     <div><Filter className="mx-auto text-muted"/><h3 className="empty-title mt-4">No matching
                         people</h3><p className="mt-2 text-sm text-muted">Adjust the category filter or search
                         terms.</p></div>
-                </div> : <PeopleList people={visiblePeople} onSelect={select}/>}</main>
+                </div> : view === 'network' ? <Suspense fallback={<div className="card h-[520px] animate-pulse lg:h-[640px]"/>}><PeopleNetwork people={visiblePeople} relationships={relationships} selectedId={selectedId} onSelect={select} onInspectRelationship={inspectRelationship}/></Suspense> : <PeopleList people={visiblePeople} onSelect={select}/>}</main>
             <aside className="hidden lg:block">
                 <div className="sticky top-20"><PersonDetailsPanel caseId={caseId} person={selected} people={people}
                                                                    relationships={relationships}
-                                                                   inspectedRelationship={null} onSelect={select} readOnly={readOnly}/>
+                                                                   inspectedRelationship={inspectedRelationship} onSelect={select} readOnly={readOnly}/>
                 </div>
             </aside>
         </div>}
@@ -114,7 +129,7 @@ export function PeoplePanel({caseId, readOnly = false}: { caseId: string; readOn
                 onClick={(event) => event.stopPropagation()}>
                 <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-default"/>
                 <PersonDetailsPanel caseId={caseId} person={selected} people={people} relationships={relationships}
-                                    inspectedRelationship={null} onSelect={select} onClose={() => setSelectedId(null)} readOnly={readOnly}/>
+                                    inspectedRelationship={inspectedRelationship} onSelect={select} onClose={() => {setSelectedId(null); setInspectedRelationship(null)}} readOnly={readOnly}/>
             </div>
         </div>}
     </section>

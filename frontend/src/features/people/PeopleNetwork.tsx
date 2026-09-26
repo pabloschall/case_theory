@@ -74,7 +74,7 @@ export function PeopleNetwork({ people, relationships, selectedId, onSelect, onI
   const leave = useCallback(() => setHoveredId(null), [])
   const click = useCallback<NodeMouseHandler<PersonGraphNode>>((_, node) => onSelect(node.id), [onSelect])
 
-  return <div className="h-[520px] overflow-hidden rounded-xl border border-subtle bg-[#0A1015] shadow-card lg:h-[640px]">
+  return <div className="h-[520px] overflow-hidden rounded-xl border border-subtle bg-background shadow-card lg:h-[640px]">
     <ReactFlow
       nodes={nodes}
       edges={edges}
