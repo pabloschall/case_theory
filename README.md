@@ -2,7 +2,7 @@
 
 EILLEN is a mobile-first collaborative case investigation workspace. The current Phase 1 foundation provides secure cookie authentication, rotating refresh sessions, universal investigation-tool access for authenticated users, PostgreSQL migrations, Redis-backed login rate limiting, a worker process, and a responsive React shell.
 
-The product and deployment design lives in [ARCHITECTURE.md](ARCHITECTURE.md).
+The product and deployment design lives in [ARCHITECTURE.md](ARCHITECTURE.md). The proposed research-themed XP, rank, badge, objective, and Field Gift system is documented in [GAMIFICATION_PLAN.md](GAMIFICATION_PLAN.md).
 
 ## Run locally
 
