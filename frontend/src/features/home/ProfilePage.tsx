@@ -1,9 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { ArrowUpCircle, Camera, LogOut, ShieldCheck, Undo2, UserRoundX } from 'lucide-react'
+import { ArrowUpCircle, Award, Camera, LogOut, ShieldCheck, Undo2, UserRoundX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { useNavigate } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { z } from 'zod'
 import { PageHeader, UpgradeButton } from '../../components/ui/Visual'
 import { queryClient } from '../../lib/query'
@@ -28,6 +28,7 @@ export function ProfilePage() {
   const fileInput = useRef<HTMLInputElement>(null)
   const [avatarError, setAvatarError] = useState('')
   const { data: user } = useQuery({ queryKey: ['current-user'], queryFn: api.currentUser })
+  const { data: progression } = useQuery({ queryKey: ['progression'], queryFn: api.progression })
   const blocked = useQuery({ queryKey: ['blocked-users'], queryFn: api.blockedUsers })
   const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm<ProfileForm>({ resolver: zodResolver(schema), defaultValues: { display_name: '', username: '', bio: '' } })
   useEffect(() => { if (user) reset({ display_name: user.display_name, username: user.username, bio: user.bio ?? '' }) }, [user, reset])
@@ -57,6 +58,7 @@ export function ProfilePage() {
       </form>
       <dl className="divide-y divide-subtle border-t border-subtle px-6 text-sm"><div className="flex justify-between gap-4 py-4"><dt className="text-muted">Email</dt><dd className="truncate font-semibold text-primary">{user?.email}</dd></div><div className="flex items-center justify-between gap-4 py-4"><dt className="text-muted">Email status</dt><dd className="flex items-center gap-3"><span className="inline-flex items-center gap-1 font-semibold text-primary"><ShieldCheck size={16}/>{user?.is_verified ? 'Verified' : 'Verification pending'}</span>{user && !user.is_verified && <button type="button" className="secondary-button min-h-8 px-3 text-xs" disabled={verification.isPending} onClick={() => verification.mutate()}>{verification.isPending ? 'Sending…' : verification.isSuccess ? 'Sent' : 'Resend'}</button>}</dd></div></dl>
     </section>
+    {progression && <Link to="/progression" className="card mt-6 flex items-center gap-4 p-6 transition hover:border-accent/35"><div className="grid size-12 shrink-0 place-items-center rounded-full border border-accent/40 bg-accent-muted text-accent"><Award size={23}/></div><div className="min-w-0 flex-1"><p className="eyebrow">Case Theory rank</p><p className="mt-1 font-display text-xl font-semibold text-primary">{progression.rank.name}</p><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-accent" style={{ width: `${progression.progress_percent}%` }}/></div><p className="metadata mt-2">{progression.lifetime_xp} Research XP · View badges and activity</p></div></Link>}
     <section className="card mt-6 p-6"><div className="flex items-center gap-2"><UserRoundX size={17} className="text-muted"/><h2 className="section-title">Blocked members</h2></div>{blocked.isLoading && <p className="mt-4 text-xs text-muted">Loading blocked members…</p>}{blocked.data?.length === 0 && <p className="mt-4 text-sm text-muted">You have not blocked anyone.</p>}<div className="mt-4 divide-y divide-subtle">{blocked.data?.map((member) => <div key={member.id} className="flex items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="truncate text-sm font-semibold text-primary">{member.display_name}</p><p className="metadata mt-1">@{member.username}</p></div><button type="button" onClick={() => unblock.mutate(member.id)} disabled={unblock.isPending} className="secondary-button min-h-10 px-3 text-xs"><Undo2 size={14}/>Unblock</button></div>)}</div></section>
   </div>
 }

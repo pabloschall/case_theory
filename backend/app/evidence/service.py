@@ -22,6 +22,7 @@ from app.evidence.schemas import (
     UploadTicket,
 )
 from app.people.models import Person, PersonEvidence
+from app.progression.service import ProgressionEvent, ProgressionService
 from app.storage.base import StorageProvider
 from app.users.models import User
 
@@ -146,6 +147,17 @@ class EvidenceService:
         await self.db.flush()
         await self._link_people(case_id, item.id, data.person_ids, user.id)
         await self.db.commit()
+        if item.description:
+            await ProgressionService(self.db, self.settings).award_safely(
+                ProgressionEvent(
+                    user_id=user.id,
+                    event_key=f"external_evidence_added:{item.id}",
+                    rule_code="external_evidence_added",
+                    resource_type="evidence",
+                    resource_id=str(item.id),
+                    case_id=case_id,
+                )
+            )
         await self.db.refresh(item)
         return to_evidence_read(item)
 
@@ -207,6 +219,16 @@ class EvidenceService:
         item.sha256_hash = hashlib.sha256(content).hexdigest()
         item.processing_status = "available"
         await self.db.commit()
+        await ProgressionService(self.db, self.settings).award_safely(
+            ProgressionEvent(
+                user_id=item.uploaded_by_user_id,
+                event_key=f"evidence_upload_completed:{item.id}",
+                rule_code="evidence_upload_completed",
+                resource_type="evidence",
+                resource_id=str(item.id),
+                case_id=case_id,
+            )
+        )
         return to_evidence_read(item)
 
     async def download_url(self, case_id: uuid.UUID, evidence_id: uuid.UUID) -> str:

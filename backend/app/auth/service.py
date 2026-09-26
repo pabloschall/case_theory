@@ -22,6 +22,7 @@ from app.common.errors import AppError
 from app.common.ids import new_uuid
 from app.common.timestamps import utc_now
 from app.config.settings import Settings
+from app.progression.service import ProgressionEvent, ProgressionService
 from app.subscriptions.models import SubscriptionPlan, UserSubscription
 from app.users.models import User, UserProfile
 
@@ -117,6 +118,15 @@ class AuthService:
             token.used_at = utc_now()
             user.is_verified = True
             await self.db.commit()
+            await ProgressionService(self.db, self.settings).award_safely(
+                ProgressionEvent(
+                    user_id=user.id,
+                    event_key=f"email_verified:{user.id}",
+                    rule_code="email_verified",
+                    resource_type="user",
+                    resource_id=str(user.id),
+                )
+            )
         elif not user.is_verified:
             raise AppError(400, "invalid_verification_token", "Verification link is invalid or expired")
         return user

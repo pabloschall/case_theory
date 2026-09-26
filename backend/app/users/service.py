@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.common.errors import AppError
 from app.config.settings import Settings, get_settings
 from app.evidence.service import _detect_content_type
+from app.progression.service import ProgressionEvent, ProgressionService
 from app.storage.base import StorageProvider
 from app.users.models import User, UserAvatarUpload, UserBlock
 from app.users.schemas import AvatarUploadRequest, AvatarUploadTicket, ProfileUpdate
@@ -43,6 +44,16 @@ class UserService:
         except IntegrityError as exc:
             await self.db.rollback()
             raise AppError(409, "username_taken", "That username is already in use") from exc
+        if user.profile.display_name and (user.profile.bio or user.profile.avatar_url):
+            await ProgressionService(self.db, self.settings).award_safely(
+                ProgressionEvent(
+                    user_id=user.id,
+                    event_key=f"profile_completed:{user.id}",
+                    rule_code="profile_completed",
+                    resource_type="user",
+                    resource_id=str(user.id),
+                )
+            )
         return user
 
     async def request_avatar(
@@ -105,6 +116,16 @@ class UserService:
         user.profile.avatar_object_key = upload.storage_object_key
         user.profile.avatar_url = f"/api/v1/users/{user.id}/avatar"
         await self.db.commit()
+        if user.profile.display_name and (user.profile.bio or user.profile.avatar_url):
+            await ProgressionService(self.db, self.settings).award_safely(
+                ProgressionEvent(
+                    user_id=user.id,
+                    event_key=f"profile_completed:{user.id}",
+                    rule_code="profile_completed",
+                    resource_type="user",
+                    resource_id=str(user.id),
+                )
+            )
         if previous_key and previous_key != upload.storage_object_key:
             await self.storage.delete(previous_key)
         return user

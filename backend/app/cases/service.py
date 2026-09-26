@@ -25,6 +25,7 @@ from app.evidence.models import Evidence, TimelineEventEvidence
 from app.evidence.service import to_evidence_read
 from app.people.models import Person, TimelineEventPerson
 from app.people.service import to_linked_person
+from app.progression.service import ProgressionEvent, ProgressionService
 from app.subscriptions.permissions import PermissionService
 from app.users.models import User
 
@@ -478,6 +479,17 @@ class CaseService:
                 ]
             )
         await self.db.commit()
+        if evidence:
+            await ProgressionService(self.db).award_safely(
+                ProgressionEvent(
+                    user_id=user.id,
+                    event_key=f"sourced_timeline_added:{event.id}",
+                    rule_code="sourced_timeline_added",
+                    resource_type="timeline_event",
+                    resource_id=str(event.id),
+                    case_id=case_id,
+                )
+            )
         case = await self.get(case_id)
         return next(
             item

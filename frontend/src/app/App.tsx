@@ -21,6 +21,7 @@ import { FBICaseBrowserPage } from '../features/import/FBICaseBrowserPage'
 import { InvitationPage } from '../features/invitations/InvitationPage'
 import { MemberProfilePage } from '../features/messaging/MemberProfilePage'
 import { MessengerPage } from '../features/messaging/MessengerPage'
+import { ProgressionPage } from '../features/progression/ProgressionPage'
 import { api } from '../services/api'
 
 function ProtectedShell() {
@@ -59,6 +60,7 @@ const router = createBrowserRouter([
     { path: '/messages/:conversationId', element: <MessengerPage /> },
     { path: '/users/:userId', element: <MemberProfilePage /> },
     { path: '/profile', element: <ProfilePage /> },
+    { path: '/progression', element: <ProgressionPage /> },
     {
       path: '/admin',
       element: <AdminOnly />,

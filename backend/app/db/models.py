@@ -40,6 +40,14 @@ from app.people.models import (
     PersonRelationship,
     TimelineEventPerson,
 )
+from app.progression.models import (
+    BadgeDefinition,
+    ProgressionLedgerEntry,
+    ProgressionProfile,
+    ProgressionRank,
+    ProgressionRule,
+    UserBadge,
+)
 from app.subscriptions.models import (
     AIUsageRecord,
     Permission,
@@ -99,4 +107,10 @@ __all__ = [
     "PersonNote",
     "TimelineEventPerson",
     "DiscussionThreadPerson",
+    "ProgressionRank",
+    "ProgressionRule",
+    "ProgressionProfile",
+    "ProgressionLedgerEntry",
+    "BadgeDefinition",
+    "UserBadge",
 ]

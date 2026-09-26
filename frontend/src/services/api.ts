@@ -1,4 +1,4 @@
-import type { AdminCasePage, AdminUserListItem, AdminUserPage, ApiErrorBody, CaseDetail, CaseInvitation, CaseListItem, CaseListPage, CaseLocation, CaseNotebookNote, CasePerson, CaseTimelineEntry, CurrentUser, CursorPage, DirectConversation, DirectConversationSummary, DirectMessage, DiscussionThread, DiscussionThreadPage, Evidence, EvidenceComment, FBICase, FBICasePage, InvitationPreview, LocationType, MemberProfile, MessageAttachment, ModerationReport, ModerationReportPage, PersonNote, PersonRelationship, ReportReason, ReportResourceType, ResearchAction, ResearchChatResponse, TimelineEvent } from '../types'
+import type { AdminCasePage, AdminUserListItem, AdminUserPage, ApiErrorBody, CaseDetail, CaseInvitation, CaseListItem, CaseListPage, CaseLocation, CaseNotebookNote, CasePerson, CaseTimelineEntry, CurrentUser, CursorPage, DirectConversation, DirectConversationSummary, DirectMessage, DiscussionThread, DiscussionThreadPage, Evidence, EvidenceComment, FBICase, FBICasePage, InvitationPreview, LocationType, MemberProfile, MessageAttachment, ModerationReport, ModerationReportPage, PersonNote, PersonRelationship, ProgressionLedgerPage, ProgressionSummary, ReportReason, ReportResourceType, ResearchAction, ResearchChatResponse, TimelineEvent } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL ?? '/api/v1'
 let csrfToken: string | null = null
@@ -38,6 +38,10 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
 
 export const api = {
   currentUser: () => request<CurrentUser>('/users/me'),
+  progression: () => request<ProgressionSummary>('/users/me/progression'),
+  progressionLedger: (page = 1, pageSize = 20) => request<ProgressionLedgerPage>(`/users/me/progression/ledger?page=${page}&page_size=${pageSize}`),
+  acknowledgeProgression: (data: { receipt_ids?: string[]; badge_codes?: string[] }) => request<void>('/users/me/progression/acknowledge', { method: 'PATCH', body: JSON.stringify(data) }),
+  updateProgressionPrivacy: (data: { show_rank: boolean; show_badges: boolean }) => request<void>('/users/me/progression/privacy', { method: 'PATCH', body: JSON.stringify(data) }),
   updateProfile: (data: { display_name: string; username: string; bio: string }) => request<CurrentUser>('/users/me', { method: 'PATCH', body: JSON.stringify(data) }),
   requestAvatarUpload: (data: { filename: string; content_type: string; file_size: number }) => request<{ upload_id: string; upload_url: string; upload_method: string; upload_headers: Record<string, string> }>('/users/me/avatar', { method: 'POST', body: JSON.stringify(data) }),
   completeAvatarUpload: (uploadId: string) => request<CurrentUser>(`/users/me/avatar/${uploadId}/complete`, { method: 'POST' }),

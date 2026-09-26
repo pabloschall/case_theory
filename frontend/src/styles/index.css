@@ -10,6 +10,13 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradie
 button, input, textarea, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; }
+
+@keyframes achievement-in {
+  from { opacity: 0; transform: translateY(18px) scale(.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.achievement-card { animation: achievement-in .45s cubic-bezier(.2, .8, .2, 1); }
+@media (prefers-reduced-motion: reduce) { .achievement-card { animation: none; } }
 .lucide { stroke-width: 1.65; }
 
 .auth-metal-card {

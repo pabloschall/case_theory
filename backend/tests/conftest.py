@@ -13,6 +13,8 @@ from app.db.base import Base
 from app.db.seed import PERMISSIONS, PLAN_DEFINITIONS
 from app.db.session import SessionFactory, engine
 from app.main import app
+from app.progression.definitions import BADGE_DEFINITIONS, RANK_DEFINITIONS, RULE_DEFINITIONS
+from app.progression.models import BadgeDefinition, ProgressionRank, ProgressionRule
 from app.subscriptions.models import Permission, PlanPermission, SubscriptionPlan, UserSubscription
 
 
@@ -35,6 +37,44 @@ async def database() -> None:
             await db.flush()
             for permission_code in definition["permissions"]:
                 db.add(PlanPermission(plan_id=plan.id, permission_id=permissions[permission_code].id))
+        db.add_all(
+            [
+                ProgressionRank(
+                    code=code,
+                    name=name,
+                    threshold=threshold,
+                    rank_order=rank_order,
+                    icon_key=icon_key,
+                )
+                for code, name, threshold, rank_order, icon_key in RANK_DEFINITIONS
+            ]
+        )
+        db.add_all(
+            [
+                ProgressionRule(
+                    code=code,
+                    reason=reason,
+                    xp=xp,
+                    daily_cap=daily_cap,
+                    lifetime_once=lifetime_once,
+                )
+                for code, reason, xp, daily_cap, lifetime_once in RULE_DEFINITIONS
+            ]
+        )
+        db.add_all(
+            [
+                BadgeDefinition(
+                    code=code,
+                    name=name,
+                    description=description,
+                    criteria=criteria,
+                    category="research_craft",
+                    icon_key=icon_key,
+                    sort_order=sort_order,
+                )
+                for code, name, description, criteria, icon_key, sort_order in BADGE_DEFINITIONS
+            ]
+        )
         await db.commit()
     yield
 
@@ -53,9 +93,7 @@ def paid_signups(monkeypatch: pytest.MonkeyPatch) -> None:
     async def register_as_paid(self: AuthService, *args: object, **kwargs: object):
         user = await original(self, *args, **kwargs)
         plan = await self.db.scalar(select(SubscriptionPlan).where(SubscriptionPlan.code == "lead"))
-        subscription = await self.db.scalar(
-            select(UserSubscription).where(UserSubscription.user_id == user.id)
-        )
+        subscription = await self.db.scalar(select(UserSubscription).where(UserSubscription.user_id == user.id))
         assert plan is not None and subscription is not None
         subscription.plan_id = plan.id
         user.is_verified = True

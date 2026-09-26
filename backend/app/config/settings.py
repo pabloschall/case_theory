@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     mailgun_from_email: str = ""
     email_verification_expiry_hours: int = 24
     password_reset_expiry_minutes: int = 60
+    progression_shadow_mode: bool = False
     csrf_cookie_name: str = "eillen_csrf"
     access_cookie_name: str = "eillen_access"
     refresh_cookie_name: str = "eillen_refresh"

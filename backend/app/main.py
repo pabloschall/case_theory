@@ -23,6 +23,7 @@ from app.messaging.routes import router as messaging_router
 from app.moderation.routes import router as moderation_router
 from app.notes.routes import router as notes_router
 from app.people.routes import router as people_router
+from app.progression.routes import router as progression_router
 from app.subscriptions.routes import router as subscription_router
 from app.users.routes import router as user_router
 
@@ -63,6 +64,7 @@ app.include_router(discussions_router, prefix=settings.api_prefix)
 app.include_router(evidence_router, prefix=settings.api_prefix)
 app.include_router(maps_router, prefix=settings.api_prefix)
 app.include_router(people_router, prefix=settings.api_prefix)
+app.include_router(progression_router, prefix=settings.api_prefix)
 app.include_router(admin_router, prefix=settings.api_prefix)
 app.include_router(fbi_router, prefix=settings.api_prefix)
 app.include_router(invitations_router, prefix=settings.api_prefix)

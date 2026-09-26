@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { Archive, Flag, Home, LogIn, Menu, MessageCircle, Plus, Search, Telescope, UserPlus, UserRound, Users, Volume2, VolumeX, X } from 'lucide-react'
+import { Archive, Award, Flag, Home, LogIn, Menu, MessageCircle, Plus, Search, Telescope, UserPlus, UserRound, Users, Volume2, VolumeX, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router'
 import { api } from '../services/api'
 import { useUiStore } from '../state/ui'
 import { Brand } from './Brand'
+import { ProgressionExperience } from '../features/progression/ProgressionExperience'
 
 const workspaceNavigation = [
   { to: '/cases', label: 'Case Directory', icon: Search },
@@ -31,6 +32,7 @@ export function AppShell() {
   const canAccessAdmin = currentUser?.permissions.includes('admin.access') ?? false
   const canMessage = currentUser?.permissions.includes('messaging.use') ?? false
   const { data: unreadMessages } = useQuery({ queryKey: ['messages', 'unread'], queryFn: api.unreadMessages, enabled: canMessage, refetchInterval: 5000 })
+  const { data: progression } = useQuery({ queryKey: ['progression'], queryFn: api.progression, enabled: authenticated, retry: false })
   const showMessengerDot = unreadMessages?.has_unread ?? false
   const authenticatedNavigation = canAccessAdmin ? adminNavigation : workspaceNavigation
   const primaryNavigation = authenticated ? authenticatedNavigation : workspaceNavigation.slice(0, 1)
@@ -69,7 +71,7 @@ export function AppShell() {
         </nav>
         <div className="flex items-center gap-2">
           {greetingVisible && <button type="button" onClick={toggleGreeting} className="ghost-button size-11 px-0" aria-label={greetingPlaying ? 'Pause greeting' : 'Play greeting'} title={greetingPlaying ? 'Pause greeting' : 'Play greeting'}>{greetingPlaying ? <Volume2 size={17}/> : <VolumeX size={17}/>}</button>}
-          {authenticated ? <>{!canAccessAdmin && <Link to="/cases/new" className="secondary-button hidden text-xs text-accent md:flex"><Plus size={15}/> New case</Link>}<Link to="/profile" className="ghost-button hidden size-11 px-0 md:grid" aria-label="Profile"><UserRound size={18}/></Link></> : <div className="hidden items-center gap-2 md:flex"><Link to="/login" className="ghost-button text-xs">Login</Link><Link to="/register" className="primary-button min-h-10 px-4 text-xs">Sign up</Link></div>}
+          {authenticated ? <>{progression && <Link to="/progression" className="hidden min-w-32 rounded-lg border border-accent/25 bg-accent-muted px-3 py-2 md:block" aria-label={`Research rank ${progression.rank.name}`}><span className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.1em] text-accent"><Award size={13}/>{progression.rank.name}</span><span className="mt-1 block h-1 overflow-hidden rounded-full bg-black/25"><span className="block h-full rounded-full bg-accent" style={{ width: `${progression.progress_percent}%` }}/></span></Link>}{!canAccessAdmin && <Link to="/cases/new" className="secondary-button hidden text-xs text-accent md:flex"><Plus size={15}/> New case</Link>}<Link to="/profile" className="ghost-button hidden size-11 px-0 md:grid" aria-label="Profile"><UserRound size={18}/></Link></> : <div className="hidden items-center gap-2 md:flex"><Link to="/login" className="ghost-button text-xs">Login</Link><Link to="/register" className="primary-button min-h-10 px-4 text-xs">Sign up</Link></div>}
           <button onClick={() => setNavigationOpen(!navigationOpen)} className="ghost-button size-11 px-0 md:hidden" aria-label="Toggle navigation">{navigationOpen ? <X size={20}/> : <Menu size={20}/>}</button>
         </div>
       </div>
@@ -79,5 +81,6 @@ export function AppShell() {
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-subtle bg-background/95 px-2 pb-[max(.45rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden" aria-label="Primary">
       <div className="mx-auto grid max-w-md" style={{ gridTemplateColumns: `repeat(${mobileNavigation.length}, minmax(0, 1fr))` }}>{mobileNavigation.map(({to,label,icon:Icon}) => <Link key={to} to={to} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-medium transition duration-200 ${isActive(to) ? 'text-accent' : 'text-muted'}`}><span className="relative"><Icon size={18}/>{to === '/messages' && showMessengerDot && <span aria-label="Unread messages" className="absolute -right-2 -top-1 size-2 rounded-full bg-red-500"/>}</span>{label}</Link>)}</div>
     </nav>
+    <ProgressionExperience enabled={authenticated}/>
   </div>
 }

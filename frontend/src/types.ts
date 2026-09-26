@@ -18,6 +18,12 @@ export type CurrentUser = {
   created_at: string
 }
 
+export type ProgressionRank = { code: string; name: string; threshold: number; icon_key: string }
+export type ProgressionBadge = { code: string; name: string; description: string; criteria: string; category: string; icon_key: string; earned_at: string | null }
+export type XpReceipt = { id: string; xp: number; reason: string; created_at: string }
+export type ProgressionSummary = { lifetime_xp: number; show_rank: boolean; show_badges: boolean; rank: ProgressionRank; next_rank: ProgressionRank | null; progress_percent: number; xp_to_next_rank: number | null; badges: ProgressionBadge[]; pending_badges: ProgressionBadge[]; pending_receipts: XpReceipt[] }
+export type ProgressionLedgerPage = { items: { id: string; rule_code: string; xp: number; reason: string; resource_type: string | null; resource_id: string | null; created_at: string }[]; page: number; page_size: number; total: number; total_pages: number }
+
 export type ApiErrorBody = { error?: { code?: string; message?: string; request_id?: string } }
 
 export type CursorPage<T> = {
