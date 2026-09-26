@@ -437,6 +437,7 @@ async def test_user_can_add_unverified_timeline_event(client: AsyncClient, monke
         headers={"X-CSRF-Token": token},
         json={
             "occurred_on": "2004-08-20",
+            "occurred_time": "18:30",
             "title": "Journal entry recorded",
             "description": "A user-added event requiring source review.",
         },
@@ -446,7 +447,20 @@ async def test_user_can_add_unverified_timeline_event(client: AsyncClient, monke
     assert created.json()["ai_generated"] is False
     assert created.json()["verification_status"] == "unverified"
     assert created.json()["created_by_user_id"] is not None
-    assert created.json()["date_label"] == "August 20, 2004"
+    assert created.json()["date_label"] == "August 20, 2004 at 6:30 PM"
+    assert created.json()["occurred_time"] == "18:30:00"
+
+    same_day_earlier = await client.post(
+        f"/api/v1/cases/{case_id}/timeline",
+        headers={"X-CSRF-Token": token},
+        json={
+            "occurred_on": "2004-08-20",
+            "occurred_time": "07:15",
+            "title": "Morning record located",
+            "description": "This earlier time was added after the evening event.",
+        },
+    )
+    assert same_day_earlier.status_code == 201
 
     earlier = await client.post(
         f"/api/v1/cases/{case_id}/timeline",
@@ -461,6 +475,7 @@ async def test_user_can_add_unverified_timeline_event(client: AsyncClient, monke
     opened = await client.get(f"/api/v1/cases/{case_id}")
     assert [event["title"] for event in opened.json()["timeline"]] == [
         "Earlier record located",
+        "Morning record located",
         "Journal entry recorded",
     ]
     assert opened.json()["timeline"][0]["occurred_on"] == "2003-02-11"

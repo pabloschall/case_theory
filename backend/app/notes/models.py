@@ -1,7 +1,7 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text, Time
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.common.ids import new_uuid
@@ -48,9 +48,10 @@ class CaseTimelineEntry(Base):
     __tablename__ = "case_timeline_entries"
     __table_args__ = (
         Index(
-            "ix_case_timeline_entries_case_date_id",
+            "ix_case_timeline_entries_case_date_time_id",
             "case_id",
             "occurred_on",
+            "occurred_time",
             "id",
         ),
     )
@@ -63,6 +64,7 @@ class CaseTimelineEntry(Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     occurred_on: Mapped[date] = mapped_column(index=True)
+    occurred_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     title: Mapped[str] = mapped_column(String(180))
     body: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

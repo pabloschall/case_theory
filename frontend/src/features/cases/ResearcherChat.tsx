@@ -117,7 +117,7 @@ export function ResearcherChat({caseId, title}: {caseId: string; title: string})
 }
 
 function actionDescription(action: ResearchAction) {
-    if (action.action_type === 'timeline') return `${action.payload.occurred_on} · ${action.payload.description}`
+    if (action.action_type === 'timeline') return `${action.payload.occurred_on}${action.payload.occurred_time ? ` at ${action.payload.occurred_time.slice(0, 5)}` : ''} · ${action.payload.description}`
     if (action.action_type === 'thread') return `${action.payload.thread_type.replaceAll('_', ' ')} · ${action.payload.body}`
     return `${action.payload.evidence_type} · ${action.payload.url}`
 }

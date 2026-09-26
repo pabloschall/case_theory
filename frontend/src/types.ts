@@ -131,6 +131,7 @@ export type TimelineEvent = {
   id: string
   date_label: string
   occurred_on: string | null
+  occurred_time: string | null
   date_precision: 'exact' | 'month' | 'year' | 'approximate' | 'unknown' | string
   title: string
   description: string
@@ -155,6 +156,7 @@ export type ResearchAction = ResearchActionBase & (
       action_type: 'timeline'
       payload: {
         occurred_on: string
+        occurred_time: string | null
         title: string
         description: string
         evidence_ids: string[]
@@ -239,6 +241,7 @@ export type CaseTimelineEntry = {
   id: string
   case_id: string
   occurred_on: string
+  occurred_time: string | null
   title: string
   body: string
   author: {

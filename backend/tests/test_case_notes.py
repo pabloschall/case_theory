@@ -122,12 +122,14 @@ async def test_personal_timeline_is_private_to_its_author(
         headers={"X-CSRF-Token": token},
         json={
             "occurred_on": "2026-09-20",
+            "occurred_time": "18:30",
             "title": "Reviewed the public record",
             "body": "Compared the source dates and recorded an open question.",
         },
     )
     assert created.status_code == 201
     assert created.json()["author"]["username"] == "personal_timeline"
+    assert created.json()["occurred_time"] == "18:30:00"
     entry_id = created.json()["id"]
 
     updated = await client.patch(
@@ -135,12 +137,31 @@ async def test_personal_timeline_is_private_to_its_author(
         headers={"X-CSRF-Token": token},
         json={
             "occurred_on": "2026-09-21",
+            "occurred_time": "07:45",
             "title": "Reviewed the complete public record",
             "body": "Compared all available source dates and recorded an open question.",
         },
     )
     assert updated.status_code == 200
     assert updated.json()["occurred_on"] == "2026-09-21"
+    assert updated.json()["occurred_time"] == "07:45:00"
+
+    earlier_same_day = await client.post(
+        f"/api/v1/cases/{case_id}/my-timeline",
+        headers={"X-CSRF-Token": token},
+        json={
+            "occurred_on": "2026-09-21",
+            "occurred_time": "06:15",
+            "title": "Started the morning review",
+            "body": "Opened the source list before the complete review.",
+        },
+    )
+    assert earlier_same_day.status_code == 201
+    own_timeline = await client.get(f"/api/v1/cases/{case_id}/my-timeline")
+    assert [item["title"] for item in own_timeline.json()] == [
+        "Started the morning review",
+        "Reviewed the complete public record",
+    ]
 
     await client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": token})
     visible = await client.get(f"/api/v1/cases/{case_id}/my-timeline")

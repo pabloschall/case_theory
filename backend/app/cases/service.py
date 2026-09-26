@@ -1,6 +1,6 @@
 import re
 import uuid
-from datetime import date
+from datetime import date, time
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -69,6 +69,7 @@ def to_case_read(
                 id=item.id,
                 date_label=item.date_label,
                 occurred_on=item.occurred_on,
+                occurred_time=item.occurred_time,
                 date_precision=item.date_precision,
                 title=item.title,
                 description=item.description,
@@ -92,6 +93,8 @@ def to_case_read(
                 key=lambda item: (
                     item.occurred_on is None,
                     item.occurred_on or date.max,
+                    item.occurred_time is None,
+                    item.occurred_time or time.max,
                     item.created_at,
                     str(item.id),
                 ),
@@ -451,10 +454,14 @@ class CaseService:
             people = list(result.scalars())
             if len(people) != len(person_ids):
                 raise AppError(422, "invalid_people", "One or more people do not belong to this case")
+        date_label = data.occurred_on.strftime("%B %d, %Y").replace(" 0", " ")
+        if data.occurred_time is not None:
+            date_label += f" at {data.occurred_time.strftime('%I:%M %p').lstrip('0')}"
         event = TimelineEvent(
             case_id=case_id,
-            date_label=data.occurred_on.strftime("%B %d, %Y").replace(" 0", " "),
+            date_label=date_label,
             occurred_on=data.occurred_on,
+            occurred_time=data.occurred_time,
             date_precision="exact",
             title=data.title,
             description=data.description,

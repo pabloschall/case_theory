@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -97,6 +97,7 @@ class TimelineEventRead(BaseModel):
     id: uuid.UUID
     date_label: str
     occurred_on: date | None
+    occurred_time: time | None
     date_precision: str
     title: str
     description: str
@@ -114,6 +115,7 @@ class TimelineEventCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     occurred_on: date
+    occurred_time: time | None = None
     title: str = Field(min_length=2, max_length=240)
     description: str = Field(min_length=1, max_length=5000)
     evidence_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)

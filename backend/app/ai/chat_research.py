@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, time
 from typing import Any, Literal, cast
 
 from openai import AsyncOpenAI
@@ -35,6 +35,7 @@ class ChatResearchRequest(BaseModel):
 class TimelineActionDraft(BaseModel):
     action_type: Literal["timeline"]
     occurred_on: date
+    occurred_time: time | None = None
     title: str = Field(min_length=2, max_length=240)
     description: str = Field(min_length=1, max_length=5000)
 
@@ -101,6 +102,7 @@ def build_research_action(
     if isinstance(draft, TimelineActionDraft):
         payload = TimelineEventCreate(
             occurred_on=draft.occurred_on,
+            occurred_time=draft.occurred_time,
             title=draft.title,
             description=_with_source_urls(draft.description, sources, max_length=5000),
         ).model_dump(mode="json")
@@ -185,7 +187,8 @@ class OpenAIChatResearcher:
                 "topic, or evidence for a public source link. Use facts already established in the conversation and "
                 "current research. Evidence actions must copy a URL from the sources consulted in this response. "
                 "Timeline descriptions and thread bodies must end with the supporting source URLs so the created "
-                "object preserves its provenance. "
+                "object preserves its provenance. For timeline drafts, include occurred_time when a source or the "
+                "conversation supports an exact local time; otherwise leave it null. "
                 "Do not propose an action for a normal research question. Never claim the action was already run; "
                 "tell the user it is ready for their review."
             ),

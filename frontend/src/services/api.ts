@@ -99,7 +99,7 @@ export const api = {
   requestMessageAttachment: (conversationId: string, data: { filename: string; content_type: string; file_size: number }) => request<{ attachment: MessageAttachment; upload_url: string; upload_method: string; upload_headers: Record<string, string> }>(`/messages/conversations/${conversationId}/attachments`, { method: 'POST', body: JSON.stringify(data) }),
   completeMessageAttachment: (conversationId: string, attachmentId: string) => request<MessageAttachment>(`/messages/conversations/${conversationId}/attachments/${attachmentId}/complete`, { method: 'POST' }),
   messageAttachmentUrl: (conversationId: string, attachmentId: string) => request<{ url: string }>(`/messages/conversations/${conversationId}/attachments/${attachmentId}/url`),
-  createTimelineEvent: (caseId: string, data: { occurred_on: string; title: string; description: string; evidence_ids?: string[]; person_ids?: string[] }) => request<TimelineEvent>(`/cases/${caseId}/timeline`, { method: 'POST', body: JSON.stringify(data) }),
+  createTimelineEvent: (caseId: string, data: { occurred_on: string; occurred_time?: string | null; title: string; description: string; evidence_ids?: string[]; person_ids?: string[] }) => request<TimelineEvent>(`/cases/${caseId}/timeline`, { method: 'POST', body: JSON.stringify(data) }),
   discussionThreads: (caseId: string, cursor?: string, limit = 10) => {
     const params = new URLSearchParams({ limit: String(limit) })
     if (cursor) params.set('cursor', cursor)
@@ -134,8 +134,8 @@ export const api = {
   updateNotebookNote: (caseId: string, noteId: string, data: { title: string; body: string }) => request<CaseNotebookNote>(`/cases/${caseId}/notes/${noteId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteNotebookNote: (caseId: string, noteId: string) => request<void>(`/cases/${caseId}/notes/${noteId}`, { method: 'DELETE' }),
   caseTimelineEntries: (caseId: string) => request<CaseTimelineEntry[]>(`/cases/${caseId}/my-timeline`),
-  createCaseTimelineEntry: (caseId: string, data: { occurred_on: string; title: string; body: string }) => request<CaseTimelineEntry>(`/cases/${caseId}/my-timeline`, { method: 'POST', body: JSON.stringify(data) }),
-  updateCaseTimelineEntry: (caseId: string, entryId: string, data: { occurred_on: string; title: string; body: string }) => request<CaseTimelineEntry>(`/cases/${caseId}/my-timeline/${entryId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  createCaseTimelineEntry: (caseId: string, data: { occurred_on: string; occurred_time: string | null; title: string; body: string }) => request<CaseTimelineEntry>(`/cases/${caseId}/my-timeline`, { method: 'POST', body: JSON.stringify(data) }),
+  updateCaseTimelineEntry: (caseId: string, entryId: string, data: { occurred_on: string; occurred_time: string | null; title: string; body: string }) => request<CaseTimelineEntry>(`/cases/${caseId}/my-timeline/${entryId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteCaseTimelineEntry: (caseId: string, entryId: string) => request<void>(`/cases/${caseId}/my-timeline/${entryId}`, { method: 'DELETE' }),
   createReport: (data: { resource_type: ReportResourceType; resource_id: string; reason_code: ReportReason; details: string }) => request<ModerationReport>('/reports', { method: 'POST', body: JSON.stringify(data) }),
   adminReports: (status = 'pending', page = 1, pageSize = 20) => request<ModerationReportPage>(`/admin/reports?${new URLSearchParams({ status, page: String(page), page_size: String(pageSize) }).toString()}`),

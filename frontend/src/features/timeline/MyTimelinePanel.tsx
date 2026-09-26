@@ -13,6 +13,7 @@ export function MyTimelinePanel({ caseId, canWrite, isAuthenticated }: { caseId:
   const [open, setOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [occurredOn, setOccurredOn] = useState(today())
+  const [occurredTime, setOccurredTime] = useState('')
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const queryKey = ['case', caseId, 'my-timeline']
@@ -22,15 +23,16 @@ export function MyTimelinePanel({ caseId, canWrite, isAuthenticated }: { caseId:
     setOpen(false)
     setEditingId(null)
     setOccurredOn(today())
+    setOccurredTime('')
     setTitle('')
     setBody('')
   }
   const creation = useMutation({
-    mutationFn: () => api.createCaseTimelineEntry(caseId, { occurred_on: occurredOn, title, body }),
+    mutationFn: () => api.createCaseTimelineEntry(caseId, { occurred_on: occurredOn, occurred_time: occurredTime || null, title, body }),
     onSuccess: async () => { reset(); await refresh() },
   })
   const update = useMutation({
-    mutationFn: () => api.updateCaseTimelineEntry(caseId, editingId!, { occurred_on: occurredOn, title, body }),
+    mutationFn: () => api.updateCaseTimelineEntry(caseId, editingId!, { occurred_on: occurredOn, occurred_time: occurredTime || null, title, body }),
     onSuccess: async () => { reset(); await refresh() },
   })
   const deletion = useMutation({
@@ -40,6 +42,7 @@ export function MyTimelinePanel({ caseId, canWrite, isAuthenticated }: { caseId:
   const edit = (entry: CaseTimelineEntry) => {
     setEditingId(entry.id)
     setOccurredOn(entry.occurred_on)
+    setOccurredTime(entry.occurred_time?.slice(0, 5) ?? '')
     setTitle(entry.title)
     setBody(entry.body)
     setOpen(true)
@@ -62,18 +65,21 @@ export function MyTimelinePanel({ caseId, canWrite, isAuthenticated }: { caseId:
 
     {open && <div className="card mt-6 p-5 sm:p-6">
       <div className="flex items-center justify-between gap-3"><p className="eyebrow">{editingId ? 'Edit timeline entry' : 'New timeline entry'}</p><button type="button" onClick={reset} className="ghost-button size-9 p-0" aria-label="Close editor"><X size={15}/></button></div>
-      <div className="mt-4 grid gap-4 sm:grid-cols-[180px_1fr]"><label className="text-[10px] font-semibold uppercase tracking-[.12em] text-muted">Date<input type="date" value={occurredOn} onChange={(event) => setOccurredOn(event.target.value)} className="field mt-2"/></label><label className="text-[10px] font-semibold uppercase tracking-[.12em] text-muted">Title<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={180} className="field mt-2" placeholder="What happened?"/></label></div>
+      <div className="mt-4 grid gap-4 md:grid-cols-[180px_150px_1fr]"><label className="text-[10px] font-semibold uppercase tracking-[.12em] text-muted">Date<input type="date" value={occurredOn} onChange={(event) => setOccurredOn(event.target.value)} className="field mt-2 [color-scheme:dark]"/></label><label className="text-[10px] font-semibold uppercase tracking-[.12em] text-muted">Time <span className="font-normal normal-case tracking-normal">(optional)</span><input type="time" value={occurredTime} onChange={(event) => setOccurredTime(event.target.value)} className="field mt-2 [color-scheme:dark]"/></label><label className="text-[10px] font-semibold uppercase tracking-[.12em] text-muted">Title<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={180} className="field mt-2" placeholder="What happened?"/></label></div>
       <label className="mt-4 block text-[10px] font-semibold uppercase tracking-[.12em] text-muted">Details<textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={20000} rows={6} className="field mt-2 resize-y py-3" placeholder="Describe the event, observation, or question…"/></label>
       <div className="mt-4 flex justify-end"><button type="button" onClick={save} disabled={pending || !occurredOn || !title.trim() || !body.trim()} className="primary-button w-auto px-4 text-xs"><Save size={15}/>{pending ? 'Saving…' : 'Save entry'}</button></div>
     </div>}
 
     {error && <p role="alert" className="error-banner mt-5">{error instanceof ApiError ? error.message : 'The timeline entry could not be saved'}</p>}
-    {!isAuthenticated ? <div className="card mt-6 grid min-h-56 place-items-center p-8 text-center"><div><LockKeyhole className="mx-auto text-muted"/><h3 className="empty-title mt-4">Sign in to view your timeline</h3><p className="mt-2 text-sm text-muted">Your private case timeline is available after you sign in.</p></div></div> : query.isLoading ? <div className="card mt-6 h-56 animate-pulse"/> : query.error ? <p role="alert" className="error-banner mt-6">Your private timeline could not be loaded.</p> : entries.length ? <div className="relative mt-7 space-y-5 before:absolute before:bottom-3 before:left-[7px] before:top-3 before:w-px before:bg-subtle">{entries.map((entry) => <article key={entry.id} className="relative pl-8"><span className="absolute left-0 top-2 size-[15px] rounded-full border-4 border-background bg-accent"/><div className="card p-5 sm:p-6"><div className="flex items-start justify-between gap-4"><div><time className="text-[10px] font-semibold uppercase tracking-[.12em] text-accent">{formatDay(entry.occurred_on)}</time><h3 className="mt-2 font-display text-xl text-primary">{entry.title}</h3><p className="metadata mt-2 text-[9px]">Updated {formatDate(entry.updated_at)}</p></div>{entry.can_edit && canWrite && <span className="flex shrink-0 gap-1"><button type="button" onClick={() => edit(entry)} className="ghost-button size-9 p-0" aria-label="Edit timeline entry"><Pencil size={14}/></button><button type="button" onClick={() => { if (window.confirm('Delete this timeline entry?')) deletion.mutate(entry.id) }} className="ghost-button size-9 p-0 text-danger" aria-label="Delete timeline entry"><Trash2 size={14}/></button></span>}</div><p className="mt-4 whitespace-pre-line text-sm leading-7 text-secondary">{entry.body}</p></div></article>)}</div> : <div className="card mt-6 grid min-h-56 place-items-center p-8 text-center"><div><CalendarDays className="mx-auto text-muted"/><h3 className="empty-title mt-4">Your timeline is empty</h3><p className="mt-2 text-sm text-muted">Your private timeline entries for this case will appear here.</p></div></div>}
+    {!isAuthenticated ? <div className="card mt-6 grid min-h-56 place-items-center p-8 text-center"><div><LockKeyhole className="mx-auto text-muted"/><h3 className="empty-title mt-4">Sign in to view your timeline</h3><p className="mt-2 text-sm text-muted">Your private case timeline is available after you sign in.</p></div></div> : query.isLoading ? <div className="card mt-6 h-56 animate-pulse"/> : query.error ? <p role="alert" className="error-banner mt-6">Your private timeline could not be loaded.</p> : entries.length ? <div className="relative mt-7 space-y-5 before:absolute before:bottom-3 before:left-[7px] before:top-3 before:w-px before:bg-subtle">{entries.map((entry) => <article key={entry.id} className="relative pl-8"><span className="absolute left-0 top-2 size-[15px] rounded-full border-4 border-background bg-accent"/><div className="card p-5 sm:p-6"><div className="flex items-start justify-between gap-4"><div><time className="text-[10px] font-semibold uppercase tracking-[.12em] text-accent">{formatOccurrence(entry.occurred_on, entry.occurred_time)}</time><h3 className="mt-2 font-display text-xl text-primary">{entry.title}</h3><p className="metadata mt-2 text-[9px]">Updated {formatDate(entry.updated_at)}</p></div>{entry.can_edit && canWrite && <span className="flex shrink-0 gap-1"><button type="button" onClick={() => edit(entry)} className="ghost-button size-9 p-0" aria-label="Edit timeline entry"><Pencil size={14}/></button><button type="button" onClick={() => { if (window.confirm('Delete this timeline entry?')) deletion.mutate(entry.id) }} className="ghost-button size-9 p-0 text-danger" aria-label="Delete timeline entry"><Trash2 size={14}/></button></span>}</div><p className="mt-4 whitespace-pre-line text-sm leading-7 text-secondary">{entry.body}</p></div></article>)}</div> : <div className="card mt-6 grid min-h-56 place-items-center p-8 text-center"><div><CalendarDays className="mx-auto text-muted"/><h3 className="empty-title mt-4">Your timeline is empty</h3><p className="mt-2 text-sm text-muted">Your private timeline entries for this case will appear here.</p></div></div>}
   </section>
 }
 
-function formatDay(value: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
+function formatOccurrence(date: string, time: string | null) {
+  const day = new Intl.DateTimeFormat(undefined, { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`))
+  if (!time) return day
+  const clock = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }).format(new Date(`1970-01-01T${time}Z`))
+  return `${day} at ${clock}`
 }
 
 function formatDate(value: string) {

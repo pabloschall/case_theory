@@ -1,5 +1,5 @@
 import re
-from datetime import date
+from datetime import date, time
 
 MONTHS = {
     name.lower(): number
@@ -50,6 +50,26 @@ def parse_timeline_date(value: str) -> date | None:
 
     year_match = re.search(r"\b((?:18|19|20)\d{2})\b", normalized)
     return date(int(year_match.group(1)), 1, 1) if year_match else None
+
+
+def parse_timeline_time(value: str) -> time | None:
+    """Return a local clock time when an AI timeline label states one."""
+    normalized = value.strip().lower()
+    twelve_hour = re.search(
+        r"\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*([ap])\.?m\.?\b",
+        normalized,
+    )
+    if twelve_hour:
+        hour_text, minute_text, meridiem = twelve_hour.groups()
+        hour = int(hour_text) % 12
+        if meridiem == "p":
+            hour += 12
+        return time(hour, int(minute_text or 0))
+
+    twenty_four_hour = re.search(r"\b([01]?\d|2[0-3]):([0-5]\d)\b", normalized)
+    if twenty_four_hour:
+        return time(*(int(part) for part in twenty_four_hour.groups()))
+    return None
 
 
 def _safe_date(year: int, month: int, day: int) -> date | None:

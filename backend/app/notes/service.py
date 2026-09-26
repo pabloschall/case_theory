@@ -120,7 +120,11 @@ class NotebookService:
                     .options(
                         selectinload(CaseTimelineEntry.author).selectinload(User.profile)
                     )
-                    .order_by(CaseTimelineEntry.occurred_on, CaseTimelineEntry.id)
+                    .order_by(
+                        CaseTimelineEntry.occurred_on,
+                        CaseTimelineEntry.occurred_time.asc().nulls_last(),
+                        CaseTimelineEntry.id,
+                    )
                 )
             ).scalars()
         )
@@ -133,6 +137,7 @@ class NotebookService:
             case_id=case_id,
             author_user_id=user.id,
             occurred_on=data.occurred_on,
+            occurred_time=data.occurred_time,
             title=data.title,
             body=data.body,
         )
@@ -149,6 +154,7 @@ class NotebookService:
     ) -> TimelineEntryRead:
         entry = await self._owned_timeline_entry(case_id, entry_id, user.id)
         entry.occurred_on = data.occurred_on
+        entry.occurred_time = data.occurred_time
         entry.title = data.title
         entry.body = data.body
         await self.db.commit()
@@ -240,6 +246,7 @@ class NotebookService:
             id=entry.id,
             case_id=entry.case_id,
             occurred_on=entry.occurred_on,
+            occurred_time=entry.occurred_time,
             title=entry.title,
             body=entry.body,
             author=cls._author(entry.author),

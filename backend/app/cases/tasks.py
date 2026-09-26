@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.ai.openai_provider import OpenAICaseGenerator
 from app.cases.models import Case, CaseGenerationJob, CaseSummary, Source, TimelineEvent, TimelineEventSource
-from app.cases.timeline_dates import parse_timeline_date
+from app.cases.timeline_dates import parse_timeline_date, parse_timeline_time
 from app.common.timestamps import utc_now
 from app.config.settings import get_settings
 from app.db import models as _models  # noqa: F401  Register all FK targets for worker mappers.
@@ -117,6 +117,7 @@ async def _generate_case(case_id: uuid.UUID, job_id: uuid.UUID) -> None:
                         case_id=case.id,
                         date_label=event.date_label,
                         occurred_on=parse_timeline_date(event.date_label),
+                        occurred_time=parse_timeline_time(event.date_label),
                         title=event.title,
                         description=event.description,
                         confidence=event.confidence,

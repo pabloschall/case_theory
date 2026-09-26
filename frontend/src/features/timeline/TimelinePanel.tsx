@@ -14,6 +14,7 @@ import {LinkedPeople, PersonPicker} from '../people/PersonPicker'
 
 const eventSchema = z.object({
     occurred_on: z.iso.date('Choose a valid date'),
+    occurred_time: z.union([z.literal(''), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Choose a valid time')]).optional(),
     title: z.string().trim().min(2, 'Add a short event title').max(240),
     description: z.string().trim().min(1, 'Describe what happened').max(5000),
 })
@@ -29,6 +30,7 @@ export function TimelinePanel({item, readOnly = false}: { item: CaseDetail; read
     const create = useMutation({
         mutationFn: (data: EventForm) => api.createTimelineEvent(item.id, {
             ...data,
+            occurred_time: data.occurred_time || null,
             evidence_ids: selected,
             person_ids: personIds
         }),
@@ -63,10 +65,12 @@ export function TimelinePanel({item, readOnly = false}: { item: CaseDetail; read
         </div>
         {creating && <form onSubmit={form.handleSubmit((data) => create.mutate(data))}
                            className="mt-5 rounded-xl border border-subtle bg-background/35 p-5">
-            <div className="grid gap-4 sm:grid-cols-2"><label className="text-xs font-semibold text-primary">Event
+            <div className="grid gap-4 md:grid-cols-[180px_150px_1fr]"><label className="text-xs font-semibold text-primary">Event
                 date<input type="date"
                            className="field mt-2 [color-scheme:dark]" {...form.register('occurred_on')}/><FieldError
-                    value={form.formState.errors.occurred_on?.message}/></label><label
+                    value={form.formState.errors.occurred_on?.message}/></label><label className="text-xs font-semibold text-primary">Event time <span className="font-normal text-muted">(optional)</span><input type="time"
+                           className="field mt-2 [color-scheme:dark]" {...form.register('occurred_time')}/><FieldError
+                    value={form.formState.errors.occurred_time?.message}/></label><label
                 className="text-xs font-semibold text-primary">Event title<input className="field mt-2"
                                                                                  placeholder="Vehicle recorded near trailhead" {...form.register('title')}/><FieldError
                 value={form.formState.errors.title?.message}/></label></div>

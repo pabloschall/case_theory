@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -47,6 +47,7 @@ class TimelineEntryWrite(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     occurred_on: date
+    occurred_time: time | None = None
     title: str = Field(min_length=1, max_length=180)
     body: str = Field(min_length=1, max_length=20_000)
 
@@ -63,6 +64,7 @@ class TimelineEntryRead(BaseModel):
     id: uuid.UUID
     case_id: uuid.UUID
     occurred_on: date
+    occurred_time: time | None
     title: str
     body: str
     author: ContributorAuthorRead

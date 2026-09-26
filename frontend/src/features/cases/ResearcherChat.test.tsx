@@ -70,6 +70,7 @@ describe("ResearcherChat", () => {
       endpoint: "/cases/case-1/timeline",
       payload: {
         occurred_on: "2024-03-12",
+        occurred_time: null,
         title: "Officials published an update",
         description: "The official case page published a dated update.",
         evidence_ids: [],

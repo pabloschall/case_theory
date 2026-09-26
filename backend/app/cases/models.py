@@ -1,8 +1,8 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, Text, Time, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -91,6 +91,7 @@ class TimelineEvent(Base):
     case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"), index=True)
     date_label: Mapped[str] = mapped_column(String(120))
     occurred_on: Mapped[date | None] = mapped_column(Date, index=True)
+    occurred_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     date_precision: Mapped[str] = mapped_column(String(30), default="unknown")
     title: Mapped[str] = mapped_column(String(240))
     description: Mapped[str] = mapped_column(Text)
