@@ -1,16 +1,11 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Archive, Award, Bookmark, Clock3, Sparkles, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Sparkles, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import type { ProgressionBadge } from "../../types";
 import { queryClient } from "../../lib/query";
 import { api } from "../../services/api";
-
-const badgeIcons = {
-  bookmark: Bookmark,
-  clock: Clock3,
-  archive: Archive,
-} as const;
+import { BadgeArtwork } from "./BadgeArtwork";
 
 export function ProgressionExperience({ enabled }: { enabled: boolean }) {
   const [receiptVisible, setReceiptVisible] = useState(false);
@@ -77,10 +72,6 @@ function AchievementReveal({
   onDismiss: () => void;
   pending: boolean;
 }) {
-  const Icon = useMemo(
-    () => badgeIcons[badge.icon_key as keyof typeof badgeIcons] ?? Award,
-    [badge.icon_key],
-  );
   return (
     <div
       className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm"
@@ -98,8 +89,12 @@ function AchievementReveal({
         >
           <X size={18} />
         </button>
-        <div className="mx-auto grid size-24 place-items-center rounded-full border border-accent/60 bg-accent-muted text-accent shadow-[0_0_45px_rgba(213,166,74,.25)]">
-          <Icon size={43} />
+        <div className="mx-auto size-36 drop-shadow-[0_0_28px_rgba(213,166,74,.3)] sm:size-44">
+          <BadgeArtwork
+            badgeCode={badge.code}
+            badgeName={badge.name}
+            className="size-full object-contain"
+          />
         </div>
         <p className="eyebrow mt-6 flex items-center justify-center gap-2">
           <Sparkles size={13} />

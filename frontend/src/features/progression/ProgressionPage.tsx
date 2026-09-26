@@ -1,10 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Archive, Award, Bookmark, Clock3, LockKeyhole } from "lucide-react";
+import { LockKeyhole } from "lucide-react";
 import { PageHeader } from "../../components/ui/Visual";
 import { api } from "../../services/api";
 import { queryClient } from "../../lib/query";
-
-const icons = { bookmark: Bookmark, clock: Clock3, archive: Archive } as const;
+import { BadgeArtwork } from "./BadgeArtwork";
 
 export function ProgressionPage() {
   const progression = useQuery({
@@ -96,17 +95,23 @@ export function ProgressionPage() {
         <h2 className="section-title">Badge collection</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {data.badges.map((badge) => {
-            const Icon = icons[badge.icon_key as keyof typeof icons] ?? Award;
             const earned = Boolean(badge.earned_at);
             return (
               <article
                 key={badge.code}
                 className={`card p-5 ${earned ? "border-accent/30" : "opacity-65"}`}
               >
-                <div
-                  className={`grid size-12 place-items-center rounded-full border ${earned ? "border-accent/45 bg-accent-muted text-accent" : "border-default bg-white/5 text-muted"}`}
-                >
-                  {earned ? <Icon size={23} /> : <LockKeyhole size={20} />}
+                <div className="relative size-24">
+                  <BadgeArtwork
+                    badgeCode={badge.code}
+                    badgeName={badge.name}
+                    className={`size-full object-contain ${earned ? "drop-shadow-[0_0_14px_rgba(213,166,74,.22)]" : "grayscale opacity-30"}`}
+                  />
+                  {!earned && (
+                    <span className="absolute inset-0 grid place-items-center text-muted">
+                      <LockKeyhole size={22} />
+                    </span>
+                  )}
                 </div>
                 <h3 className="mt-4 font-display text-xl font-semibold text-primary">
                   {badge.name}

@@ -68,6 +68,9 @@ describe("ProgressionExperience", () => {
     expect(
       await screen.findByRole("heading", { name: "First Citation" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "First Citation badge" }),
+    ).toHaveAttribute("src", "/badges/first-citation.png");
     fireEvent.click(
       screen.getByRole("button", { name: "Continue researching" }),
     );
