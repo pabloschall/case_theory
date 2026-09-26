@@ -3,6 +3,7 @@ import uuid
 
 import pytest
 from httpx import AsyncClient
+from pydantic import BaseModel
 from pytest import MonkeyPatch
 from sqlalchemy import select
 
@@ -10,9 +11,13 @@ from app.ai.chat_research import (
     ChatResearchResponse,
     EvidenceActionDraft,
     ResearchAction,
+    StructuredEvidenceResearchAnswer,
     StructuredResearchAnswer,
+    StructuredThreadResearchAnswer,
+    StructuredTimelineResearchAnswer,
     TimelineActionDraft,
     build_research_action,
+    requested_action_type,
 )
 from app.ai.schemas import ResearchedSource
 from app.cases import routes as case_routes
@@ -26,6 +31,31 @@ def test_structured_research_schema_uses_openai_supported_constructs() -> None:
     schema = json.dumps(StructuredResearchAnswer.model_json_schema())
     assert '"oneOf"' not in schema
     assert '"format": "uri"' not in schema
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("Can you add that to the timeline?", "timeline"),
+        ("Create a discussion thread from this", "thread"),
+        ("Save this source as evidence", "evidence"),
+        ("What does the timeline say?", None),
+    ],
+)
+def test_requested_action_type_only_matches_explicit_creation_requests(
+    message: str, expected: str | None
+) -> None:
+    assert requested_action_type(message) == expected
+
+
+@pytest.mark.parametrize(
+    "response_type",
+    [StructuredTimelineResearchAnswer, StructuredThreadResearchAnswer, StructuredEvidenceResearchAnswer],
+)
+def test_explicit_action_response_schemas_require_an_action(response_type: type[BaseModel]) -> None:
+    schema = response_type.model_json_schema()
+    assert "action" in schema["required"]
+    assert schema["properties"]["action"].get("default") is None
 
 
 class StubResearcher:

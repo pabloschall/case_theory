@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import date, time
 from typing import Any, Literal, cast
@@ -63,9 +64,41 @@ class EvidenceActionDraft(BaseModel):
 ActionDraft = TimelineActionDraft | ThreadActionDraft | EvidenceActionDraft
 
 
-class StructuredResearchAnswer(BaseModel):
+class StructuredResearchAnswerBase(BaseModel):
     answer: str = Field(min_length=1, max_length=6000)
     action: ActionDraft | None
+
+
+class StructuredResearchAnswer(StructuredResearchAnswerBase):
+    pass
+
+
+class StructuredTimelineResearchAnswer(StructuredResearchAnswerBase):
+    action: TimelineActionDraft
+
+
+class StructuredThreadResearchAnswer(StructuredResearchAnswerBase):
+    action: ThreadActionDraft
+
+
+class StructuredEvidenceResearchAnswer(StructuredResearchAnswerBase):
+    action: EvidenceActionDraft
+
+
+RequestedActionType = Literal["timeline", "thread", "evidence"]
+
+
+def requested_action_type(message: str) -> RequestedActionType | None:
+    normalized = message.casefold()
+    if not re.search(r"\b(add|create|make|put|record|save|post|turn)\b", normalized):
+        return None
+    if re.search(r"\b(timeline|chronology)\b", normalized):
+        return "timeline"
+    if re.search(r"\b(thread|discussion)\b", normalized):
+        return "thread"
+    if re.search(r"\bevidence\b", normalized):
+        return "evidence"
+    return None
 
 
 class ResearchAction(BaseModel):
@@ -159,6 +192,22 @@ class OpenAIChatResearcher:
         message: str,
         history: list[ChatTurn],
     ) -> ChatResearchResponse:
+        requested_action = requested_action_type(message)
+        response_format: type[StructuredResearchAnswerBase]
+        if requested_action == "timeline":
+            response_format = StructuredTimelineResearchAnswer
+        elif requested_action == "thread":
+            response_format = StructuredThreadResearchAnswer
+        elif requested_action == "evidence":
+            response_format = StructuredEvidenceResearchAnswer
+        else:
+            response_format = StructuredResearchAnswer
+        action_requirement = (
+            f"The latest request explicitly asks for a {requested_action} action. The action field is required and "
+            f"must contain a {requested_action} draft."
+            if requested_action
+            else "The latest request does not explicitly require an action. Return null unless it asks to create one."
+        )
         conversation = "\n\n".join(
             f"{turn.role.upper()}: {turn.content}"
             + (
@@ -190,14 +239,15 @@ class OpenAIChatResearcher:
                 "object preserves its provenance. For timeline drafts, include occurred_time when a source or the "
                 "conversation supports an exact local time; otherwise leave it null. "
                 "Do not propose an action for a normal research question. Never claim the action was already run; "
-                "tell the user it is ready for their review."
+                "tell the user it is ready for their review. "
+                f"{action_requirement}"
             ),
             input=(
                 f"CASE TITLE\n{case_title}\n\nCASE OVERVIEW\n{case_summary or 'No overview is available.'}"
                 f"\n\nCONVERSATION\n{conversation or 'No earlier messages.'}"
                 f"\n\nLATEST USER QUESTION\n{message}"
             ),
-            text_format=StructuredResearchAnswer,
+            text_format=response_format,
         )
         current_sources = _extract_researched_sources(cast(Any, response).model_dump(warnings=False))
         source_map = {source.url: source for source in current_sources}
