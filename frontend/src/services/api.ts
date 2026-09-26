@@ -100,6 +100,7 @@ export const api = {
   completeMessageAttachment: (conversationId: string, attachmentId: string) => request<MessageAttachment>(`/messages/conversations/${conversationId}/attachments/${attachmentId}/complete`, { method: 'POST' }),
   messageAttachmentUrl: (conversationId: string, attachmentId: string) => request<{ url: string }>(`/messages/conversations/${conversationId}/attachments/${attachmentId}/url`),
   createTimelineEvent: (caseId: string, data: { occurred_on: string; occurred_time?: string | null; title: string; description: string; evidence_ids?: string[]; person_ids?: string[] }) => request<TimelineEvent>(`/cases/${caseId}/timeline`, { method: 'POST', body: JSON.stringify(data) }),
+  reorderTimelineEvents: (caseId: string, eventIds: string[]) => request<void>(`/cases/${caseId}/timeline/order`, { method: 'PUT', body: JSON.stringify({ event_ids: eventIds }) }),
   discussionThreads: (caseId: string, cursor?: string, limit = 10) => {
     const params = new URLSearchParams({ limit: String(limit) })
     if (cursor) params.set('cursor', cursor)

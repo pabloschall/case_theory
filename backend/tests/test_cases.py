@@ -479,6 +479,44 @@ async def test_user_can_add_unverified_timeline_event(client: AsyncClient, monke
         "Journal entry recorded",
     ]
     assert opened.json()["timeline"][0]["occurred_on"] == "2003-02-11"
+    chronological_ids = [event["id"] for event in opened.json()["timeline"]]
+
+    reordered = await client.put(
+        f"/api/v1/cases/{case_id}/timeline/order",
+        headers={"X-CSRF-Token": token},
+        json={"event_ids": list(reversed(chronological_ids))},
+    )
+    assert reordered.status_code == 204
+    opened = await client.get(f"/api/v1/cases/{case_id}")
+    assert [event["title"] for event in opened.json()["timeline"]] == [
+        "Journal entry recorded",
+        "Morning record located",
+        "Earlier record located",
+    ]
+    assert [event["position"] for event in opened.json()["timeline"]] == [0, 1, 2]
+
+    await client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": token})
+    token = (await client.get("/api/v1/auth/csrf")).json()["csrf_token"]
+    outsider = await client.post(
+        "/api/v1/auth/register",
+        headers={"X-CSRF-Token": token},
+        json={
+            "email": "timeline-outsider@example.com",
+            "username": "timeline_outsider",
+            "display_name": "Timeline Outsider",
+            "password": "sourcework123",
+            "confirm_age_18": True,
+            "accept_terms": True,
+            "accept_community_standards": True,
+        },
+    )
+    assert outsider.status_code == 201
+    forbidden = await client.put(
+        f"/api/v1/cases/{case_id}/timeline/order",
+        headers={"X-CSRF-Token": token},
+        json={"event_ids": chronological_ids},
+    )
+    assert forbidden.status_code == 403
 
 
 async def test_private_case_requires_verified_account_and_is_owner_only(

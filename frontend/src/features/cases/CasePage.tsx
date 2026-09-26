@@ -130,7 +130,7 @@ export function CasePage() {
             className={`relative min-h-12 shrink-0 rounded-t-lg border-b-2 px-4 text-xs font-semibold transition duration-200 ${tab === value ? 'border-accent bg-accent-muted text-accent shadow-[inset_0_-5px_14px_rgba(213,166,74,.05)]' : 'border-transparent text-muted hover:bg-white/[.025] hover:text-primary'}`}>{value}</button>)}</nav>
         <div className="mt-6">{tab === 'Overview' && <Overview item={item}/>}<div hidden={tab !== 'Researcher'}>{canUseResearcher ? <ResearcherChat key={item.id} caseId={item.id} title={item.title}/> : <UpgradePanel title="Researcher is locked" description="Online research is available with a paid plan."/>}</div> {tab === 'Discussion' &&
             <DiscussionPanel caseId={item.id} readOnly={!canWriteDiscussion}/>} {tab === 'Timeline' &&
-            <TimelinePanel item={item} readOnly={!canWriteTimeline}/>} {tab === 'Evidence' &&
+            <TimelinePanel item={item} readOnly={!canWriteTimeline} canReorder={item.is_owner || isAdmin}/>} {tab === 'Evidence' &&
             <EvidencePanel caseId={item.id} readOnly={!canUploadEvidence} canComment={canWriteDiscussion}/>} {tab === 'Map' && <MapPanel caseId={item.id} readOnly={!canWriteMap}/>} {tab === 'People' &&
             (canViewPeople ? <PeoplePanel caseId={item.id} readOnly={!currentUser}/> : <UpgradePanel title="People & Relationships is locked" description="This private case is available only to its members."/>)} {tab === 'My Notes' &&
             <MyNotesPanel caseId={item.id} canWrite={canWriteNotes} isAuthenticated={Boolean(currentUser)}/>} {tab === 'My Timeline' &&

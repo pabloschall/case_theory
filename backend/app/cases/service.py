@@ -18,6 +18,7 @@ from app.cases.schemas import (
     SummaryRead,
     TimelineEventCreate,
     TimelineEventRead,
+    TimelineOrderUpdate,
 )
 from app.common.errors import AppError
 from app.discussions.models import DiscussionComment, DiscussionThread
@@ -43,6 +44,21 @@ def to_case_read(
     include_evidence_details: bool = False,
 ) -> CaseRead:
     summary = next((item for item in case.summaries if item.is_current), None)
+    has_manual_timeline_order = any(item.position is not None for item in case.timeline)
+
+    def timeline_sort_key(item: TimelineEvent) -> tuple[object, ...]:
+        chronological = (
+            item.occurred_on is None,
+            item.occurred_on or date.max,
+            item.occurred_time is None,
+            item.occurred_time or time.max,
+            item.created_at,
+            str(item.id),
+        )
+        if not has_manual_timeline_order:
+            return chronological
+        return (item.position is None, item.position or 0, *chronological)
+
     return CaseRead(
         id=case.id,
         public_id=case.public_id,
@@ -70,6 +86,7 @@ def to_case_read(
                 date_label=item.date_label,
                 occurred_on=item.occurred_on,
                 occurred_time=item.occurred_time,
+                position=item.position,
                 date_precision=item.date_precision,
                 title=item.title,
                 description=item.description,
@@ -88,17 +105,7 @@ def to_case_read(
                 ],
                 people=[to_linked_person(link.person) for link in item.person_links],
             )
-            for item in sorted(
-                case.timeline,
-                key=lambda item: (
-                    item.occurred_on is None,
-                    item.occurred_on or date.max,
-                    item.occurred_time is None,
-                    item.occurred_time or time.max,
-                    item.created_at,
-                    str(item.id),
-                ),
-            )
+            for item in sorted(case.timeline, key=timeline_sort_key)
         ],
         sources=[SourceRead.model_validate(source) for source in sorted(case.sources, key=lambda item: item.position)],
         external_sources=[CaseSourceRead.model_validate(source) for source in case.external_sources],
@@ -457,11 +464,15 @@ class CaseService:
         date_label = data.occurred_on.strftime("%B %d, %Y").replace(" 0", " ")
         if data.occurred_time is not None:
             date_label += f" at {data.occurred_time.strftime('%I:%M %p').lstrip('0')}"
+        last_position = await self.db.scalar(
+            select(func.max(TimelineEvent.position)).where(TimelineEvent.case_id == case_id)
+        )
         event = TimelineEvent(
             case_id=case_id,
             date_label=date_label,
             occurred_on=data.occurred_on,
             occurred_time=data.occurred_time,
+            position=last_position + 1 if last_position is not None else None,
             date_precision="exact",
             title=data.title,
             description=data.description,
@@ -513,3 +524,33 @@ class CaseService:
             for item in to_case_read(case, user.id, include_evidence_details=True).timeline
             if item.id == event.id
         )
+
+    async def reorder_timeline(
+        self, case_id: uuid.UUID, data: TimelineOrderUpdate, user: User
+    ) -> None:
+        case = await self.db.scalar(select(Case).where(Case.id == case_id))
+        if case is None:
+            raise AppError(404, "case_not_found", "Case was not found")
+        if case.created_by_user_id != user.id and not user.is_admin:
+            raise AppError(
+                403,
+                "timeline_reorder_forbidden",
+                "Only the case owner or an admin can reorder this timeline",
+            )
+        events = list(
+            (
+                await self.db.execute(
+                    select(TimelineEvent).where(TimelineEvent.case_id == case_id)
+                )
+            ).scalars()
+        )
+        events_by_id = {event.id: event for event in events}
+        if set(data.event_ids) != set(events_by_id):
+            raise AppError(
+                409,
+                "timeline_changed",
+                "The timeline changed before the new order was saved. Refresh and try again.",
+            )
+        for position, event_id in enumerate(data.event_ids):
+            events_by_id[event_id].position = position
+        await self.db.commit()

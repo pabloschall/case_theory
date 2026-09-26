@@ -1,13 +1,13 @@
 import {zodResolver} from '@hookform/resolvers/zod'
 import {useMutation} from '@tanstack/react-query'
-import {CalendarPlus, ExternalLink, Highlighter, Plus} from 'lucide-react'
-import {useState} from 'react'
+import {ArrowDown, ArrowUp, CalendarPlus, ExternalLink, GripVertical, Highlighter, Plus} from 'lucide-react'
+import {useEffect, useState} from 'react'
 import {useForm} from 'react-hook-form'
 import {Link} from 'react-router'
 import {z} from 'zod'
 import {queryClient} from '../../lib/query'
 import {ApiError, api} from '../../services/api'
-import type {CaseDetail} from '../../types'
+import type {CaseDetail, TimelineEvent} from '../../types'
 import {EvidenceCard} from '../evidence/EvidenceCard'
 import {EvidencePicker} from '../evidence/EvidencePicker'
 import {LinkedPeople, PersonPicker} from '../people/PersonPicker'
@@ -20,14 +20,17 @@ const eventSchema = z.object({
 })
 type EventForm = z.infer<typeof eventSchema>
 
-export function TimelinePanel({item, readOnly = false}: { item: CaseDetail; readOnly?: boolean }) {
+export function TimelinePanel({item, readOnly = false, canReorder = false}: { item: CaseDetail; readOnly?: boolean; canReorder?: boolean }) {
     const [creating, setCreating] = useState(false)
     const [attaching, setAttaching] = useState<string | null>(null)
     const [selected, setSelected] = useState<string[]>([])
     const [personIds, setPersonIds] = useState<string[]>([])
     const [highlightedId, setHighlightedId] = useState<string | null>(null)
+    const [draggingId, setDraggingId] = useState<string | null>(null)
+    const [orderedEvents, setOrderedEvents] = useState(item.timeline)
     const form = useForm<EventForm>({resolver: zodResolver(eventSchema)})
     const refresh = () => queryClient.invalidateQueries({queryKey: ['case', item.id]})
+    useEffect(() => setOrderedEvents(item.timeline), [item.timeline])
     const create = useMutation({
         mutationFn: (data: EventForm) => api.createTimelineEvent(item.id, {
             ...data,
@@ -55,6 +58,24 @@ export function TimelinePanel({item, readOnly = false}: { item: CaseDetail; read
             await refresh()
         },
     })
+    const reorder = useMutation({
+        mutationFn: (events: TimelineEvent[]) => api.reorderTimelineEvents(item.id, events.map((event) => event.id)),
+        onError: () => setOrderedEvents(item.timeline),
+        onSettled: refresh,
+    })
+    const saveOrder = (events: TimelineEvent[]) => {
+        setOrderedEvents(events)
+        reorder.mutate(events)
+    }
+    const moveEvent = (eventId: string, targetIndex: number) => {
+        if (!canReorder || reorder.isPending) return
+        const currentIndex = orderedEvents.findIndex((event) => event.id === eventId)
+        if (currentIndex < 0 || targetIndex < 0 || targetIndex >= orderedEvents.length || currentIndex === targetIndex) return
+        const next = [...orderedEvents]
+        const [moved] = next.splice(currentIndex, 1)
+        next.splice(targetIndex, 0, moved)
+        saveOrder(next)
+    }
 
     return <section className="card p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -65,6 +86,8 @@ export function TimelinePanel({item, readOnly = false}: { item: CaseDetail; read
                 setPersonIds([])
             }} className="primary-button text-xs"><CalendarPlus size={16}/>{creating ? 'Close' : 'Add event'}</button>}
         </div>
+        {canReorder && item.timeline.length > 1 && <p className="metadata mt-3 text-[10px]">Drag the handle to arrange the timeline, or use the arrow buttons. Custom order is saved automatically.</p>}
+        {reorder.error && <p role="alert" className="error-banner mt-4">{reorder.error instanceof ApiError ? reorder.error.message : 'The timeline order could not be saved.'}</p>}
         {creating && <form onSubmit={form.handleSubmit((data) => create.mutate(data))}
                            className="mt-5 rounded-xl border border-subtle bg-background/35 p-5">
             <div className="grid gap-4 md:grid-cols-[180px_150px_1fr]"><label className="text-xs font-semibold text-primary">Event
@@ -91,14 +114,16 @@ export function TimelinePanel({item, readOnly = false}: { item: CaseDetail; read
                 size={15}/>{create.isPending ? 'Adding event…' : 'Add to timeline'}</button>
             <p className="metadata mt-3 text-[10px]">User-added events begin as unverified and remain separate from
                 AI-generated suggestions.</p></form>}
-        {item.timeline.length ? <div className="mt-6 space-y-0">{item.timeline.map((event) => <article key={event.id}
-                                                                                                       className={`relative rounded-r-xl border-l border-accent/25 pb-7 pl-7 pr-3 pt-3 transition duration-200 last:pb-3 ${highlightedId === event.id ? 'object-highlight' : ''}`}>
+        {orderedEvents.length ? <div className="mt-6 space-y-0">{orderedEvents.map((event, index) => <article key={event.id}
+                onDragOver={(dragEvent) => {if (canReorder && draggingId) dragEvent.preventDefault()}}
+                onDrop={(dragEvent) => {dragEvent.preventDefault(); if (draggingId) moveEvent(draggingId, index); setDraggingId(null)}}
+                className={`relative rounded-r-xl border-l border-accent/25 pb-7 pl-7 pr-3 pt-3 transition duration-200 last:pb-3 ${highlightedId === event.id ? 'object-highlight' : ''} ${draggingId === event.id ? 'opacity-45' : ''}`}>
             <span
                 className={`absolute -left-[5px] top-1 size-[10px] rounded-full border border-surface ${event.verification_status === 'verified' ? 'bg-success' : event.verification_status === 'disputed' ? 'bg-danger' : event.ai_generated ? 'bg-accent' : 'bg-warning'}`}/>
             <div className="flex flex-wrap items-center gap-2"><p
                 className="metadata text-[10px] uppercase tracking-[.1em]">{event.date_label} · {event.verification_status.replaceAll('_', ' ')}</p>
                 <span
-                    className={event.ai_generated ? 'ai-label' : 'status-badge'}>{event.ai_generated ? 'AI suggested' : 'User added'}</span><button type="button" onClick={() => setHighlightedId((current) => current === event.id ? null : event.id)} aria-pressed={highlightedId === event.id} className={`ghost-button ml-auto min-h-8 px-2 text-[10px] ${highlightedId === event.id ? 'text-accent' : ''}`}><Highlighter size={13}/>{highlightedId === event.id ? 'Highlighted' : 'Highlight'}</button>
+                    className={event.ai_generated ? 'ai-label' : 'status-badge'}>{event.ai_generated ? 'AI suggested' : 'User added'}</span>{canReorder && <span className="ml-auto inline-flex items-center gap-1"><span draggable={!reorder.isPending} onDragStart={(dragEvent) => {setDraggingId(event.id); dragEvent.dataTransfer.effectAllowed = 'move'; dragEvent.dataTransfer.setData('text/plain', event.id)}} onDragEnd={() => setDraggingId(null)} className="inline-flex size-8 cursor-grab items-center justify-center rounded-md text-muted hover:bg-white/5 hover:text-primary active:cursor-grabbing" aria-hidden="true" title="Drag to reorder"><GripVertical size={15}/></span><button type="button" onClick={() => moveEvent(event.id, index - 1)} disabled={index === 0 || reorder.isPending} className="ghost-button size-8 p-0" aria-label={`Move ${event.title} up`}><ArrowUp size={13}/></button><button type="button" onClick={() => moveEvent(event.id, index + 1)} disabled={index === orderedEvents.length - 1 || reorder.isPending} className="ghost-button size-8 p-0" aria-label={`Move ${event.title} down`}><ArrowDown size={13}/></button></span>}<button type="button" onClick={() => setHighlightedId((current) => current === event.id ? null : event.id)} aria-pressed={highlightedId === event.id} className={`ghost-button min-h-8 px-2 text-[10px] ${canReorder ? '' : 'ml-auto'} ${highlightedId === event.id ? 'text-accent' : ''}`}><Highlighter size={13}/>{highlightedId === event.id ? 'Highlighted' : 'Highlight'}</button>
             </div>
             <h3 className="mt-2 text-base font-semibold text-primary">{event.title}</h3><p
             className="mt-2 text-sm leading-6 text-secondary">{event.description}</p><LinkedPeople

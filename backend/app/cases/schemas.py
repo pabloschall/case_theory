@@ -98,6 +98,7 @@ class TimelineEventRead(BaseModel):
     date_label: str
     occurred_on: date | None
     occurred_time: time | None
+    position: int | None
     date_precision: str
     title: str
     description: str
@@ -128,6 +129,17 @@ class TimelineEventCreate(BaseModel):
         if not normalized:
             raise ValueError("Text cannot be blank")
         return normalized
+
+
+class TimelineOrderUpdate(BaseModel):
+    event_ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
+
+    @field_validator("event_ids")
+    @classmethod
+    def require_unique_events(cls, value: list[uuid.UUID]) -> list[uuid.UUID]:
+        if len(value) != len(set(value)):
+            raise ValueError("Timeline event IDs must be unique")
+        return value
 
 
 class CaseRead(BaseModel):

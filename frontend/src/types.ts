@@ -132,6 +132,7 @@ export type TimelineEvent = {
   date_label: string
   occurred_on: string | null
   occurred_time: string | null
+  position: number | null
   date_precision: 'exact' | 'month' | 'year' | 'approximate' | 'unknown' | string
   title: string
   description: string

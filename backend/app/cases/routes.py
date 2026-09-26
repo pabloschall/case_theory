@@ -20,6 +20,7 @@ from app.cases.schemas import (
     PrivacyPatch,
     TimelineEventCreate,
     TimelineEventRead,
+    TimelineOrderUpdate,
 )
 from app.cases.service import CaseService, to_case_read, to_list_item
 from app.cases.tasks import generate_case
@@ -218,6 +219,21 @@ async def create_timeline_event(
     db: AsyncSession = Depends(get_db),
 ) -> TimelineEventRead:
     return await CaseService(db).create_timeline_event(case_id, data, user)
+
+
+@router.put(
+    "/{case_id}/timeline/order",
+    status_code=204,
+    dependencies=[Depends(verify_csrf), Depends(require_permission("timeline.write"))],
+)
+async def reorder_timeline(
+    case_id: uuid.UUID,
+    data: TimelineOrderUpdate,
+    user: User = Depends(get_current_user),
+    _: None = Depends(require_case_access),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    await CaseService(db).reorder_timeline(case_id, data, user)
 
 
 @router.post("/{case_id}/research", status_code=202, dependencies=[Depends(verify_csrf)])
