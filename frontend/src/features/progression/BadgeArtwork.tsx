@@ -4,6 +4,9 @@ const badgeAssets: Record<string, string> = {
   first_citation: "/badges/first-citation.png",
   timeline_builder: "/badges/timeline-builder.png",
   evidence_curator: "/badges/evidence-curator.png",
+  case_file_opened: "/badges/case-file-opened.png",
+  source_scout: "/badges/source-scout.png",
+  first_connection: "/badges/first-connection.png",
 };
 
 export function BadgeArtwork({

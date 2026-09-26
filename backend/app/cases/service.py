@@ -198,6 +198,16 @@ class CaseService:
                 )
             )
         await self.db.commit()
+        await ProgressionService(self.db).award_safely(
+            ProgressionEvent(
+                user_id=user.id,
+                event_key=f"case_created:{case.id}",
+                rule_code="case_created",
+                resource_type="case",
+                resource_id=str(case.id),
+                case_id=case.id,
+            )
+        )
         return case, job
 
     async def get(self, case_id: uuid.UUID) -> Case:

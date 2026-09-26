@@ -111,8 +111,10 @@ Badges should track meaningful milestones rather than one-off clicks. Each badge
 
 | Badge | Criteria |
 |---|---|
+| Case File Opened | Create the first case; awards the badge without XP |
 | First Citation | Add the first qualifying public source or evidence link |
 | Source Scout | Add 10 qualifying sources across at least 3 cases |
+| First Connection | Link evidence to a person for the first time |
 | Primary Record | Add 5 accepted government, court, or official records |
 | Timeline Builder | Add 10 sourced timeline events |
 | Chronology Keeper | Add 50 sourced timeline events across at least 5 cases |

@@ -119,41 +119,51 @@ class ProgressionService:
             return await self.db.scalar(
                 select(ProgressionLedgerEntry).where(ProgressionLedgerEntry.event_key == event.event_key)
             )
-        if self.settings.progression_shadow_mode or xp <= 0:
+        if self.settings.progression_shadow_mode:
             return entry
 
-        profile = await self.db.scalar(
-            select(ProgressionProfile).where(ProgressionProfile.user_id == event.user_id).with_for_update()
-        )
-        if profile is None:
-            profile = ProgressionProfile(user_id=event.user_id)
-            self.db.add(profile)
-            await self.db.flush()
-        profile.lifetime_xp += xp
-        rank = await self.db.scalar(
-            select(ProgressionRank)
-            .where(
-                ProgressionRank.threshold <= profile.lifetime_xp,
-                ProgressionRank.is_active.is_(True),
+        if xp > 0:
+            profile = await self.db.scalar(
+                select(ProgressionProfile)
+                .where(ProgressionProfile.user_id == event.user_id)
+                .with_for_update()
             )
-            .order_by(ProgressionRank.rank_order.desc())
-        )
-        if rank is not None:
-            current = await self.db.get(ProgressionRank, profile.highest_rank_code)
-            if current is None or rank.rank_order > current.rank_order:
-                profile.highest_rank_code = rank.code
+            if profile is None:
+                profile = ProgressionProfile(user_id=event.user_id)
+                self.db.add(profile)
+                await self.db.flush()
+            profile.lifetime_xp += xp
+            rank = await self.db.scalar(
+                select(ProgressionRank)
+                .where(
+                    ProgressionRank.threshold <= profile.lifetime_xp,
+                    ProgressionRank.is_active.is_(True),
+                )
+                .order_by(ProgressionRank.rank_order.desc())
+            )
+            if rank is not None:
+                current = await self.db.get(ProgressionRank, profile.highest_rank_code)
+                if current is None or rank.rank_order > current.rank_order:
+                    profile.highest_rank_code = rank.code
         await self._evaluate_badges(event)
         return entry
 
     async def _evaluate_badges(self, event: ProgressionEvent) -> None:
         badge_codes: list[str] = []
+        if event.rule_code == "case_created":
+            badge_codes.append("case_file_opened")
         if event.rule_code == "external_evidence_added":
             badge_codes.append("first_citation")
-            count = await self._award_count(event.user_id, "external_evidence_added")
+            count = await self._badge_event_count(event.user_id, "external_evidence_added")
+            case_count = await self._badge_case_count(event.user_id, "external_evidence_added")
+            if count >= 10 and case_count >= 3:
+                badge_codes.append("source_scout")
             if count >= 25:
                 badge_codes.append("evidence_curator")
+        if event.rule_code == "evidence_person_linked":
+            badge_codes.append("first_connection")
         if event.rule_code == "sourced_timeline_added":
-            count = await self._award_count(event.user_id, "sourced_timeline_added")
+            count = await self._badge_event_count(event.user_id, "sourced_timeline_added")
             if count >= 10:
                 badge_codes.append("timeline_builder")
         for code in badge_codes:
@@ -168,13 +178,25 @@ class ProgressionService:
             if exists is None:
                 self.db.add(UserBadge(user_id=event.user_id, badge_code=code))
 
-    async def _award_count(self, user_id: uuid.UUID, rule_code: str) -> int:
+    async def _badge_event_count(self, user_id: uuid.UUID, rule_code: str) -> int:
         return int(
             await self.db.scalar(
                 select(func.count(ProgressionLedgerEntry.id)).where(
                     ProgressionLedgerEntry.user_id == user_id,
                     ProgressionLedgerEntry.rule_code == rule_code,
-                    ProgressionLedgerEntry.xp_delta > 0,
+                    ProgressionLedgerEntry.is_shadow.is_(False),
+                )
+            )
+            or 0
+        )
+
+    async def _badge_case_count(self, user_id: uuid.UUID, rule_code: str) -> int:
+        return int(
+            await self.db.scalar(
+                select(func.count(func.distinct(ProgressionLedgerEntry.case_id))).where(
+                    ProgressionLedgerEntry.user_id == user_id,
+                    ProgressionLedgerEntry.rule_code == rule_code,
+                    ProgressionLedgerEntry.case_id.is_not(None),
                     ProgressionLedgerEntry.is_shadow.is_(False),
                 )
             )

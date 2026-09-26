@@ -3,6 +3,7 @@ import uuid
 from httpx import AsyncClient
 from sqlalchemy import select
 
+from app.cases.models import Case
 from app.db.session import SessionFactory
 from app.progression.models import ProgressionLedgerEntry, UserBadge
 from app.progression.service import ProgressionEvent, ProgressionService
@@ -88,3 +89,81 @@ async def test_daily_cap_limits_xp_but_keeps_events_idempotent(client: AsyncClie
     assert body["lifetime_xp"] == 30
     ledger = (await client.get("/api/v1/users/me/progression/ledger")).json()
     assert ledger["total"] == 3
+
+
+async def test_case_created_awards_badge_without_xp(client: AsyncClient) -> None:
+    await _register(client)
+    async with SessionFactory() as db:
+        user = await db.scalar(select(User).where(User.email == "progress@example.com"))
+        assert user is not None
+        service = ProgressionService(db)
+        await service.award_safely(
+            ProgressionEvent(
+                user_id=user.id,
+                event_key=f"case_created:{uuid.uuid4()}",
+                rule_code="case_created",
+                resource_type="case",
+            )
+        )
+
+    body = (await client.get("/api/v1/users/me/progression")).json()
+    assert body["lifetime_xp"] == 0
+    assert [badge["code"] for badge in body["pending_badges"]] == ["case_file_opened"]
+    assert body["pending_receipts"] == []
+
+
+async def test_source_scout_requires_ten_sources_across_three_cases(client: AsyncClient) -> None:
+    await _register(client)
+    async with SessionFactory() as db:
+        user = await db.scalar(select(User).where(User.email == "progress@example.com"))
+        assert user is not None
+        cases = [
+            Case(
+                slug=f"progress-case-{index}",
+                title=f"Progress Case {index}",
+                victim_names=f"Person {index}",
+                privacy="public",
+                ai_research_status="complete",
+                created_by_user_id=user.id,
+            )
+            for index in range(3)
+        ]
+        db.add_all(cases)
+        await db.commit()
+        service = ProgressionService(db)
+        for index in range(10):
+            await service.award_safely(
+                ProgressionEvent(
+                    user_id=user.id,
+                    event_key=f"external_evidence_added:scout-{index}",
+                    rule_code="external_evidence_added",
+                    resource_type="evidence",
+                    resource_id=f"scout-{index}",
+                    case_id=cases[index % 3].id,
+                )
+            )
+
+    body = (await client.get("/api/v1/users/me/progression")).json()
+    earned_codes = {badge["code"] for badge in body["badges"] if badge["earned_at"]}
+    assert "first_citation" in earned_codes
+    assert "source_scout" in earned_codes
+    assert body["lifetime_xp"] == 30
+
+
+async def test_linking_evidence_to_person_awards_first_connection(client: AsyncClient) -> None:
+    await _register(client)
+    async with SessionFactory() as db:
+        user = await db.scalar(select(User).where(User.email == "progress@example.com"))
+        assert user is not None
+        await ProgressionService(db).award_safely(
+            ProgressionEvent(
+                user_id=user.id,
+                event_key=f"evidence_person_linked:{uuid.uuid4()}:{uuid.uuid4()}",
+                rule_code="evidence_person_linked",
+                resource_type="evidence_person_link",
+            )
+        )
+
+    body = (await client.get("/api/v1/users/me/progression")).json()
+    assert body["lifetime_xp"] == 4
+    assert [badge["code"] for badge in body["pending_badges"]] == ["first_connection"]

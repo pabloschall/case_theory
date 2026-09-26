@@ -147,6 +147,7 @@ class EvidenceService:
         await self.db.flush()
         await self._link_people(case_id, item.id, data.person_ids, user.id)
         await self.db.commit()
+        await self._award_person_links(item, set(data.person_ids))
         if item.description:
             await ProgressionService(self.db, self.settings).award_safely(
                 ProgressionEvent(
@@ -229,6 +230,12 @@ class EvidenceService:
                 case_id=case_id,
             )
         )
+        person_ids = set(
+            await self.db.scalars(
+                select(PersonEvidence.person_id).where(PersonEvidence.evidence_id == item.id)
+            )
+        )
+        await self._award_person_links(item, person_ids)
         return to_evidence_read(item)
 
     async def download_url(self, case_id: uuid.UUID, evidence_id: uuid.UUID) -> str:
@@ -429,6 +436,20 @@ class EvidenceService:
                 for person in people
             ]
         )
+
+    async def _award_person_links(self, item: Evidence, person_ids: set[uuid.UUID]) -> None:
+        service = ProgressionService(self.db, self.settings)
+        for person_id in person_ids:
+            await service.award_safely(
+                ProgressionEvent(
+                    user_id=item.uploaded_by_user_id,
+                    event_key=f"evidence_person_linked:{item.id}:{person_id}",
+                    rule_code="evidence_person_linked",
+                    resource_type="evidence_person_link",
+                    resource_id=f"{item.id}:{person_id}",
+                    case_id=item.case_id,
+                )
+            )
 
     async def _case_owner(self, case_id: uuid.UUID) -> uuid.UUID:
         owner_id = await self.db.scalar(select(Case.created_by_user_id).where(Case.id == case_id))

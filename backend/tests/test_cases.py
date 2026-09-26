@@ -50,6 +50,10 @@ async def test_create_search_and_open_case(client: AsyncClient, monkeypatch: Mon
     case = created.json()
     assert case["victim_names"] == "Morgan Vale"
     assert case["ai_research_status"] == "queued"
+    progression = (await client.get("/api/v1/users/me/progression")).json()
+    assert "case_file_opened" in {
+        badge["code"] for badge in progression["pending_badges"]
+    }
 
     following = await client.get("/api/v1/cases/following")
     assert following.status_code == 200
