@@ -2,7 +2,7 @@
   --font-display: "Cormorant Garamond", Georgia, serif;
   --font-ui: "Inter", system-ui, sans-serif;
 
-  --bg-navigation: #07192A;
+  --bg-navigation: #041421;
   --bg-primary: #0D2233;
   --bg-secondary: #122B3E;
   --bg-tertiary: #18364B;
@@ -38,7 +38,7 @@
   --border-strong: rgba(255, 255, 255, 0.17);
   --border-accent: rgba(213, 166, 74, 0.45);
 
-  --bg-navigation-rgb: 7 25 42;
+  --bg-navigation-rgb: 4 20 33;
   --bg-primary-rgb: 13 34 51;
   --bg-secondary-rgb: 18 43 62;
   --bg-tertiary-rgb: 24 54 75;
