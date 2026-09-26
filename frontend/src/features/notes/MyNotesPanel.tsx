@@ -12,6 +12,7 @@ export function MyNotesPanel({ caseId, canWrite, isAuthenticated }: { caseId: st
   const [creating, setCreating] = useState(false)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
+  const [createdId, setCreatedId] = useState<string | null>(null)
   const queryKey = ['case', caseId, 'notebook-notes']
   const query = useInfiniteQuery({
     queryKey,
@@ -40,6 +41,7 @@ export function MyNotesPanel({ caseId, canWrite, isAuthenticated }: { caseId: st
     onSuccess: async (note) => {
       setCreating(false)
       setSelectedId(note.id)
+      setCreatedId(note.id)
       await refresh()
     },
   })
@@ -93,7 +95,9 @@ export function MyNotesPanel({ caseId, canWrite, isAuthenticated }: { caseId: st
         {query.hasNextPage && <button type="button" onClick={() => query.fetchNextPage()} disabled={query.isFetchingNextPage} className="ghost-button mt-2 w-full text-[10px]"><ChevronDown size={13}/>{query.isFetchingNextPage ? 'Loading…' : 'Load older notes'}</button>}
       </aside>
 
-      {(creating || selected) ? <article className="card min-w-0 p-5 sm:p-7">
+      {(creating || selected) ? <article onAnimationEnd={(event) => {
+        if (event.animationName === 'object-border-sweep') setCreatedId(null)
+      }} className={`card min-w-0 p-5 sm:p-7 ${selected?.id === createdId ? 'object-created' : ''}`}>
         <div className="flex items-start justify-between gap-3"><div><p className="eyebrow">{creating ? 'New notebook entry' : 'Notebook entry'}</p><p className="metadata mt-2 text-[9px]">{selected ? `Last edited ${formatDate(selected.updated_at)}` : 'Not saved yet'}</p></div>{selected && canEditSelected && <button type="button" onClick={() => { if (window.confirm('Delete this note?')) deletion.mutate(selected.id) }} disabled={deletion.isPending} className="danger-button min-h-10 w-auto px-3 text-xs" aria-label="Delete note"><Trash2 size={14}/><span className="hidden sm:inline">Delete</span></button>}</div>
         {(creating || canEditSelected) ? <><label className="mt-5 block text-[10px] font-semibold uppercase tracking-[.12em] text-muted">Title<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={180} className="field mt-2 text-sm font-semibold" placeholder="What are you investigating?"/></label>
         <label className="mt-4 block text-[10px] font-semibold uppercase tracking-[.12em] text-muted">Notes<textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={20000} rows={15} className="field mt-2 min-h-[320px] resize-y py-4 text-sm leading-7" placeholder="Record your observations, questions, and next steps…"/></label>

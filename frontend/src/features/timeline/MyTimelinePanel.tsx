@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { CalendarDays, LockKeyhole, Pencil, Plus, Save, Trash2, X } from 'lucide-react'
+import { CalendarDays, Highlighter, LockKeyhole, Pencil, Plus, Save, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { UpgradeButton } from '../../components/ui/Visual'
@@ -14,6 +14,7 @@ export function MyTimelinePanel({ caseId, canWrite, isAuthenticated }: { caseId:
   const [editingId, setEditingId] = useState<string | null>(null)
   const [occurredOn, setOccurredOn] = useState(today())
   const [occurredTime, setOccurredTime] = useState('')
+  const [highlightedId, setHighlightedId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const queryKey = ['case', caseId, 'my-timeline']
@@ -29,11 +30,11 @@ export function MyTimelinePanel({ caseId, canWrite, isAuthenticated }: { caseId:
   }
   const creation = useMutation({
     mutationFn: () => api.createCaseTimelineEntry(caseId, { occurred_on: occurredOn, occurred_time: occurredTime || null, title, body }),
-    onSuccess: async () => { reset(); await refresh() },
+    onSuccess: async (entry) => { reset(); setHighlightedId(entry.id); await refresh() },
   })
   const update = useMutation({
     mutationFn: () => api.updateCaseTimelineEntry(caseId, editingId!, { occurred_on: occurredOn, occurred_time: occurredTime || null, title, body }),
-    onSuccess: async () => { reset(); await refresh() },
+    onSuccess: async (entry) => { reset(); setHighlightedId(entry.id); await refresh() },
   })
   const deletion = useMutation({
     mutationFn: (entryId: string) => api.deleteCaseTimelineEntry(caseId, entryId),
@@ -71,7 +72,7 @@ export function MyTimelinePanel({ caseId, canWrite, isAuthenticated }: { caseId:
     </div>}
 
     {error && <p role="alert" className="error-banner mt-5">{error instanceof ApiError ? error.message : 'The timeline entry could not be saved'}</p>}
-    {!isAuthenticated ? <div className="card mt-6 grid min-h-56 place-items-center p-8 text-center"><div><LockKeyhole className="mx-auto text-muted"/><h3 className="empty-title mt-4">Sign in to view your timeline</h3><p className="mt-2 text-sm text-muted">Your private case timeline is available after you sign in.</p></div></div> : query.isLoading ? <div className="card mt-6 h-56 animate-pulse"/> : query.error ? <p role="alert" className="error-banner mt-6">Your private timeline could not be loaded.</p> : entries.length ? <div className="relative mt-7 space-y-5 before:absolute before:bottom-3 before:left-[7px] before:top-3 before:w-px before:bg-subtle">{entries.map((entry) => <article key={entry.id} className="relative pl-8"><span className="absolute left-0 top-2 size-[15px] rounded-full border-4 border-background bg-accent"/><div className="card p-5 sm:p-6"><div className="flex items-start justify-between gap-4"><div><time className="text-[10px] font-semibold uppercase tracking-[.12em] text-accent">{formatOccurrence(entry.occurred_on, entry.occurred_time)}</time><h3 className="mt-2 font-display text-xl text-primary">{entry.title}</h3><p className="metadata mt-2 text-[9px]">Updated {formatDate(entry.updated_at)}</p></div>{entry.can_edit && canWrite && <span className="flex shrink-0 gap-1"><button type="button" onClick={() => edit(entry)} className="ghost-button size-9 p-0" aria-label="Edit timeline entry"><Pencil size={14}/></button><button type="button" onClick={() => { if (window.confirm('Delete this timeline entry?')) deletion.mutate(entry.id) }} className="ghost-button size-9 p-0 text-danger" aria-label="Delete timeline entry"><Trash2 size={14}/></button></span>}</div><p className="mt-4 whitespace-pre-line text-sm leading-7 text-secondary">{entry.body}</p></div></article>)}</div> : <div className="card mt-6 grid min-h-56 place-items-center p-8 text-center"><div><CalendarDays className="mx-auto text-muted"/><h3 className="empty-title mt-4">Your timeline is empty</h3><p className="mt-2 text-sm text-muted">Your private timeline entries for this case will appear here.</p></div></div>}
+    {!isAuthenticated ? <div className="card mt-6 grid min-h-56 place-items-center p-8 text-center"><div><LockKeyhole className="mx-auto text-muted"/><h3 className="empty-title mt-4">Sign in to view your timeline</h3><p className="mt-2 text-sm text-muted">Your private case timeline is available after you sign in.</p></div></div> : query.isLoading ? <div className="card mt-6 h-56 animate-pulse"/> : query.error ? <p role="alert" className="error-banner mt-6">Your private timeline could not be loaded.</p> : entries.length ? <div className="relative mt-7 space-y-5 before:absolute before:bottom-3 before:left-[7px] before:top-3 before:w-px before:bg-subtle">{entries.map((entry) => <article key={entry.id} className="relative pl-8"><span className="absolute left-0 top-2 size-[15px] rounded-full border-4 border-background bg-accent"/><div className={`card p-5 transition duration-200 sm:p-6 ${highlightedId === entry.id ? 'object-highlight' : ''}`}><div className="flex items-start justify-between gap-4"><div><time className="text-[10px] font-semibold uppercase tracking-[.12em] text-accent">{formatOccurrence(entry.occurred_on, entry.occurred_time)}</time><h3 className="mt-2 font-display text-xl text-primary">{entry.title}</h3><p className="metadata mt-2 text-[9px]">Updated {formatDate(entry.updated_at)}</p></div><span className="flex shrink-0 gap-1"><button type="button" onClick={() => setHighlightedId((current) => current === entry.id ? null : entry.id)} aria-pressed={highlightedId === entry.id} className={`ghost-button size-9 p-0 ${highlightedId === entry.id ? 'text-accent' : ''}`} aria-label={highlightedId === entry.id ? 'Remove highlight' : 'Highlight timeline entry'}><Highlighter size={14}/></button>{entry.can_edit && canWrite && <><button type="button" onClick={() => edit(entry)} className="ghost-button size-9 p-0" aria-label="Edit timeline entry"><Pencil size={14}/></button><button type="button" onClick={() => { if (window.confirm('Delete this timeline entry?')) deletion.mutate(entry.id) }} className="ghost-button size-9 p-0 text-danger" aria-label="Delete timeline entry"><Trash2 size={14}/></button></>}</span></div><p className="mt-4 whitespace-pre-line text-sm leading-7 text-secondary">{entry.body}</p></div></article>)}</div> : <div className="card mt-6 grid min-h-56 place-items-center p-8 text-center"><div><CalendarDays className="mx-auto text-muted"/><h3 className="empty-title mt-4">Your timeline is empty</h3><p className="mt-2 text-sm text-muted">Your private timeline entries for this case will appear here.</p></div></div>}
   </section>
 }
 

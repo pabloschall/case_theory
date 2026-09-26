@@ -1,6 +1,6 @@
 import {zodResolver} from '@hookform/resolvers/zod'
 import {useMutation} from '@tanstack/react-query'
-import {CalendarPlus, ExternalLink, Plus} from 'lucide-react'
+import {CalendarPlus, ExternalLink, Highlighter, Plus} from 'lucide-react'
 import {useState} from 'react'
 import {useForm} from 'react-hook-form'
 import {Link} from 'react-router'
@@ -25,6 +25,7 @@ export function TimelinePanel({item, readOnly = false}: { item: CaseDetail; read
     const [attaching, setAttaching] = useState<string | null>(null)
     const [selected, setSelected] = useState<string[]>([])
     const [personIds, setPersonIds] = useState<string[]>([])
+    const [highlightedId, setHighlightedId] = useState<string | null>(null)
     const form = useForm<EventForm>({resolver: zodResolver(eventSchema)})
     const refresh = () => queryClient.invalidateQueries({queryKey: ['case', item.id]})
     const create = useMutation({
@@ -34,7 +35,8 @@ export function TimelinePanel({item, readOnly = false}: { item: CaseDetail; read
             evidence_ids: selected,
             person_ids: personIds
         }),
-        onSuccess: async () => {
+        onSuccess: async (event) => {
+            setHighlightedId(event.id);
             form.reset();
             setSelected([]);
             setPersonIds([]);
@@ -90,13 +92,13 @@ export function TimelinePanel({item, readOnly = false}: { item: CaseDetail; read
             <p className="metadata mt-3 text-[10px]">User-added events begin as unverified and remain separate from
                 AI-generated suggestions.</p></form>}
         {item.timeline.length ? <div className="mt-6 space-y-0">{item.timeline.map((event) => <article key={event.id}
-                                                                                                       className="relative border-l border-accent/25 pb-7 pl-7 last:pb-0">
+                                                                                                       className={`relative rounded-r-xl border-l border-accent/25 pb-7 pl-7 pr-3 pt-3 transition duration-200 last:pb-3 ${highlightedId === event.id ? 'object-highlight' : ''}`}>
             <span
                 className={`absolute -left-[5px] top-1 size-[10px] rounded-full border border-surface ${event.verification_status === 'verified' ? 'bg-success' : event.verification_status === 'disputed' ? 'bg-danger' : event.ai_generated ? 'bg-accent' : 'bg-warning'}`}/>
             <div className="flex flex-wrap items-center gap-2"><p
                 className="metadata text-[10px] uppercase tracking-[.1em]">{event.date_label} · {event.verification_status.replaceAll('_', ' ')}</p>
                 <span
-                    className={event.ai_generated ? 'ai-label' : 'status-badge'}>{event.ai_generated ? 'AI suggested' : 'User added'}</span>
+                    className={event.ai_generated ? 'ai-label' : 'status-badge'}>{event.ai_generated ? 'AI suggested' : 'User added'}</span><button type="button" onClick={() => setHighlightedId((current) => current === event.id ? null : event.id)} aria-pressed={highlightedId === event.id} className={`ghost-button ml-auto min-h-8 px-2 text-[10px] ${highlightedId === event.id ? 'text-accent' : ''}`}><Highlighter size={13}/>{highlightedId === event.id ? 'Highlighted' : 'Highlight'}</button>
             </div>
             <h3 className="mt-2 text-base font-semibold text-primary">{event.title}</h3><p
             className="mt-2 text-sm leading-6 text-secondary">{event.description}</p><LinkedPeople
