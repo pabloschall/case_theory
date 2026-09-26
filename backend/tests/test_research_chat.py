@@ -1,3 +1,4 @@
+import json
 import uuid
 
 import pytest
@@ -9,6 +10,7 @@ from app.ai.chat_research import (
     ChatResearchResponse,
     EvidenceActionDraft,
     ResearchAction,
+    StructuredResearchAnswer,
     TimelineActionDraft,
     build_research_action,
 )
@@ -18,6 +20,12 @@ from app.db.session import SessionFactory
 from app.subscriptions.models import SubscriptionPlan, UserSubscription
 
 pytestmark = pytest.mark.usefixtures("paid_signups")
+
+
+def test_structured_research_schema_uses_openai_supported_constructs() -> None:
+    schema = json.dumps(StructuredResearchAnswer.model_json_schema())
+    assert '"oneOf"' not in schema
+    assert '"format": "uri"' not in schema
 
 
 class StubResearcher:

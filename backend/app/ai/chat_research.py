@@ -1,9 +1,9 @@
 import uuid
 from datetime import date
-from typing import Annotated, Any, Literal, cast
+from typing import Any, Literal, cast
 
 from openai import AsyncOpenAI
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from pydantic import BaseModel, Field, HttpUrl, TypeAdapter, field_validator
 
 from app.ai.openai_provider import _extract_researched_sources
 from app.ai.schemas import ResearchedSource
@@ -49,14 +49,16 @@ class EvidenceActionDraft(BaseModel):
     action_type: Literal["evidence"]
     title: str = Field(min_length=2, max_length=240)
     description: str = Field(min_length=1, max_length=3000)
-    url: HttpUrl
+    url: str = Field(min_length=8, max_length=2048)
     evidence_type: EvidenceType
 
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value: str) -> str:
+        return str(TypeAdapter(HttpUrl).validate_python(value))
 
-ActionDraft = Annotated[
-    TimelineActionDraft | ThreadActionDraft | EvidenceActionDraft,
-    Field(discriminator="action_type"),
-]
+
+ActionDraft = TimelineActionDraft | ThreadActionDraft | EvidenceActionDraft
 
 
 class StructuredResearchAnswer(BaseModel):
@@ -185,7 +187,7 @@ class OpenAIChatResearcher:
             ),
             text_format=StructuredResearchAnswer,
         )
-        sources = _extract_researched_sources(cast(Any, response).model_dump())[:12]
+        sources = _extract_researched_sources(cast(Any, response).model_dump(warnings=False))[:12]
         result = response.output_parsed
         if result is None or not result.answer.strip() or not sources:
             raise RuntimeError("OpenAI web research returned no sourced answer")
