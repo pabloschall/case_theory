@@ -84,12 +84,14 @@ export function ResearcherChat({caseId, title}: {caseId: string; title: string})
         }
     }
 
-    return <section className="card mx-auto flex min-h-[60vh] max-w-4xl flex-col overflow-hidden">
+    const hasConversation = messages.length > 0 || pending
+
+    return <section className={`card mx-auto flex max-w-4xl flex-col overflow-hidden ${hasConversation ? 'min-h-[60vh]' : ''}`}>
         <div className="border-b border-subtle p-5 sm:p-6">
             <h2 className="section-title flex items-center gap-2"><Sparkles size={19} className="text-accent"/> Researcher</h2>
             <p className="mt-2 text-sm leading-6 text-secondary">Ask about {title}. The researcher uses this case’s title and overview, searches public web sources, and links the sources it finds.</p>
         </div>
-        <div className="flex-1 space-y-5 p-5 sm:p-6" aria-live="polite">
+        {hasConversation && <div className="flex-1 space-y-5 p-5 sm:p-6" aria-live="polite">
             {messages.map((message, index) => <div key={index} className={message.role === 'user' ? 'ml-auto max-w-[85%] rounded-xl bg-accent-muted p-4 text-sm text-primary' : 'max-w-[95%] rounded-xl border border-subtle bg-tertiary/50 p-4 text-sm text-secondary'}>
                 <p className="whitespace-pre-wrap leading-6">{message.content}</p>
                 {message.sources && message.sources.length > 0 && <div className="mt-4 border-t border-subtle pt-3">
@@ -104,8 +106,8 @@ export function ResearcherChat({caseId, title}: {caseId: string; title: string})
                 </div>}{message.role === 'assistant' && <button type="button" onClick={() => addToNotes(message, index)} disabled={savingIndex !== null || savedIndexes.has(index)} className="secondary-button mt-4 min-h-9 w-fit px-3 text-[11px]"><NotebookPen size={14}/>{savedIndexes.has(index) ? 'Saved to My Notes' : savingIndex === index ? 'Saving…' : 'Add to My Notes'}</button>}
             </div>)}
             {pending && <p className="flex items-center gap-2 text-sm text-muted"><Sparkles size={14} className="animate-pulse"/> Searching public sources…</p>}
-        </div>
-        <form onSubmit={submit} className="border-t border-subtle p-5 sm:p-6">
+        </div>}
+        <form onSubmit={submit} className={`${hasConversation ? 'border-t' : ''} border-subtle p-5 sm:p-6`}>
             {error && <p role="alert" className="error-banner mb-3">{error}</p>}
             <label htmlFor="research-question" className="sr-only">Ask the researcher</label>
             <div className="flex items-end gap-3"><textarea id="research-question" className="field min-h-20 flex-1 resize-y py-3" maxLength={2000} value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Ask a question about this case…" onKeyDown={(event) => {if (event.key === 'Enter' && !event.shiftKey) {event.preventDefault(); event.currentTarget.form?.requestSubmit()}}}/><button className="primary-button shrink-0" type="submit" disabled={pending || !draft.trim()}><Send size={15}/> Send</button></div>
