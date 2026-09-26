@@ -24,7 +24,6 @@ export function LoginPage() {
   const mutation = useMutation({
     mutationFn: api.login,
     onSuccess: async () => {
-      sessionStorage.setItem('play-login-greeting', 'true')
       await queryClient.invalidateQueries({ queryKey: ['current-user'] })
       const user = await queryClient.fetchQuery({ queryKey: ['current-user'], queryFn: api.currentUser })
       const destination = next === '/cases' && user.permissions.includes('admin.access') ? '/admin/users' : next

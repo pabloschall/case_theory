@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Archive, Award, Flag, Home, LogIn, Menu, MessageCircle, Plus, Search, Telescope, UserPlus, UserRound, Users, Volume2, VolumeX, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { Archive, Award, Flag, Home, LogIn, Menu, MessageCircle, Plus, Search, Telescope, UserPlus, UserRound, Users, X } from 'lucide-react'
 import { Link, Outlet, useLocation } from 'react-router'
 import { api } from '../services/api'
 import { useUiStore } from '../state/ui'
@@ -22,9 +21,6 @@ const adminNavigation = [
 ]
 
 export function AppShell() {
-  const greetingAudioRef = useRef<HTMLAudioElement>(null)
-  const [greetingVisible, setGreetingVisible] = useState(false)
-  const [greetingPlaying, setGreetingPlaying] = useState(false)
   const { navigationOpen, setNavigationOpen } = useUiStore()
   const location = useLocation()
   const { data: currentUser } = useQuery({ queryKey: ['current-user'], queryFn: api.currentUser, retry: false })
@@ -40,29 +36,11 @@ export function AppShell() {
     ? [...primaryNavigation, { to: '/profile', label: 'Profile', icon: UserRound }]
     : [...primaryNavigation, { to: '/login', label: 'Login', icon: LogIn }, { to: '/register', label: 'Sign up', icon: UserPlus }]
 
-  useEffect(() => {
-    if (!authenticated || sessionStorage.getItem('play-login-greeting') !== 'true') return
-    sessionStorage.removeItem('play-login-greeting')
-    const audio = greetingAudioRef.current
-    if (!audio) return
-    audio.volume = 0.32
-    setGreetingVisible(true)
-    void audio.play().catch(() => setGreetingPlaying(false))
-  }, [authenticated])
-
-  const toggleGreeting = () => {
-    const audio = greetingAudioRef.current
-    if (!audio) return
-    if (audio.paused) void audio.play().catch(() => setGreetingPlaying(false))
-    else audio.pause()
-  }
-
   const isActive = (to: string) => to === '/cases'
     ? location.pathname.startsWith('/cases')
     : location.pathname.startsWith(to)
 
   return <div className="min-h-dvh bg-transparent text-primary">
-    <audio ref={greetingAudioRef} src="/greeting-female-trimmed.mp3" preload="auto" onPlay={() => setGreetingPlaying(true)} onPause={() => setGreetingPlaying(false)} onEnded={() => { setGreetingPlaying(false); setGreetingVisible(false) }}/>
     <header className="app-navigation sticky top-0 z-30 border-b border-default shadow-[0_8px_30px_rgba(0,0,0,.24)]">
       <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Brand to={canAccessAdmin ? '/admin/users' : '/cases'} />
@@ -70,7 +48,6 @@ export function AppShell() {
           {primaryNavigation.map(({ to, label }) => <Link key={to} to={to} className={`relative py-7 text-[11px] font-semibold uppercase tracking-[.14em] transition duration-200 ${isActive(to) ? 'text-accent after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-accent' : 'text-muted hover:text-primary'}`}>{label}{to === '/messages' && showMessengerDot && <span aria-label="Unread messages" className="absolute right-[-9px] top-[22px] size-2 rounded-full bg-red-500"/>}</Link>)}
         </nav>
         <div className="flex items-center gap-2">
-          {greetingVisible && <button type="button" onClick={toggleGreeting} className="ghost-button size-11 px-0" aria-label={greetingPlaying ? 'Pause greeting' : 'Play greeting'} title={greetingPlaying ? 'Pause greeting' : 'Play greeting'}>{greetingPlaying ? <Volume2 size={17}/> : <VolumeX size={17}/>}</button>}
           {authenticated ? <>{progression && <Link to="/progression" className="hidden min-w-32 rounded-lg border border-accent/25 bg-accent-muted px-3 py-2 md:block" aria-label={`Research rank ${progression.rank.name}`}><span className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.1em] text-accent"><Award size={13}/>{progression.rank.name}</span><span className="mt-1 block h-1 overflow-hidden rounded-full bg-black/25"><span className="block h-full rounded-full bg-accent" style={{ width: `${progression.progress_percent}%` }}/></span></Link>}{!canAccessAdmin && <Link to="/cases/new" className="secondary-button hidden text-xs text-accent md:flex"><Plus size={15}/> New case</Link>}<Link to="/profile" className="ghost-button hidden size-11 px-0 md:grid" aria-label="Profile"><UserRound size={18}/></Link></> : <div className="hidden items-center gap-2 md:flex"><Link to="/login" className="ghost-button text-xs">Login</Link><Link to="/register" className="primary-button min-h-10 px-4 text-xs">Sign up</Link></div>}
           <button onClick={() => setNavigationOpen(!navigationOpen)} className="ghost-button size-11 px-0 md:hidden" aria-label="Toggle navigation">{navigationOpen ? <X size={20}/> : <Menu size={20}/>}</button>
         </div>
