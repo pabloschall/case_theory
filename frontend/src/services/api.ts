@@ -1,4 +1,4 @@
-import type { AdminCasePage, AdminUserListItem, AdminUserPage, ApiErrorBody, CaseDetail, CaseInvitation, CaseListItem, CaseListPage, CaseLocation, CaseNotebookNote, CasePerson, CaseTimelineEntry, CurrentUser, CursorPage, DirectConversation, DirectConversationSummary, DirectMessage, DiscussionThread, DiscussionThreadPage, Evidence, EvidenceComment, FBICase, FBICasePage, InvitationPreview, LocationType, MemberProfile, MessageAttachment, ModerationReport, ModerationReportPage, PersonNote, PersonRelationship, ReportReason, ReportResourceType, TimelineEvent } from '../types'
+import type { AdminCasePage, AdminUserListItem, AdminUserPage, ApiErrorBody, CaseDetail, CaseInvitation, CaseListItem, CaseListPage, CaseLocation, CaseNotebookNote, CasePerson, CaseTimelineEntry, CurrentUser, CursorPage, DirectConversation, DirectConversationSummary, DirectMessage, DiscussionThread, DiscussionThreadPage, Evidence, EvidenceComment, FBICase, FBICasePage, InvitationPreview, LocationType, MemberProfile, MessageAttachment, ModerationReport, ModerationReportPage, PersonNote, PersonRelationship, ReportReason, ReportResourceType, ResearchAction, ResearchChatResponse, TimelineEvent } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL ?? '/api/v1'
 let csrfToken: string | null = null
@@ -63,7 +63,16 @@ export const api = {
   createCase: (data: { victim_names: string; year?: number; location?: string; additional_context?: string; creation_mode: 'ai' | 'manual'; summary?: string; banner_template?: string; privacy: 'public' | 'private' }) => request<CaseDetail>('/cases', { method: 'POST', body: JSON.stringify(data) }),
   case: (id: string) => request<CaseDetail>(`/cases/${id}`),
   researchCase: (id: string) => request<{ job_id: string; status: string }>(`/cases/${id}/research`, { method: 'POST' }),
-  researchChat: (id: string, data: { message: string; history: { role: 'user' | 'assistant'; content: string }[] }) => request<{ answer: string; sources: { title: string; url: string }[] }>(`/cases/${id}/research-chat`, { method: 'POST', body: JSON.stringify(data) }),
+  researchChat: (id: string, data: { message: string; history: { role: 'user' | 'assistant'; content: string }[] }) => request<ResearchChatResponse>(`/cases/${id}/research-chat`, { method: 'POST', body: JSON.stringify(data) }),
+  executeResearchAction: (caseId: string, action: ResearchAction) => {
+    const expectedEndpoints: Record<ResearchAction['action_type'], string> = {
+      timeline: `/cases/${caseId}/timeline`,
+      thread: `/cases/${caseId}/discussions`,
+      evidence: `/cases/${caseId}/evidence/links`,
+    }
+    if (action.endpoint !== expectedEndpoints[action.action_type] || action.method !== 'POST') throw new Error('The proposed research action is invalid.')
+    return request<unknown>(action.endpoint, { method: action.method, body: JSON.stringify(action.payload) })
+  },
   updateCasePrivacy: (id: string, privacy: 'public' | 'private') => request<CaseDetail>(`/cases/${id}/privacy`, { method: 'PATCH', body: JSON.stringify({ privacy }) }),
   createCaseInvitation: (caseId: string) => request<CaseInvitation>(`/cases/${caseId}/invitations`, { method: 'POST', body: JSON.stringify({ role: 'contributor' }) }),
   invitation: (token: string) => request<InvitationPreview>(`/invitations/${token}`),

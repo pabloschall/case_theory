@@ -261,6 +261,7 @@ async def research_chat(
     )
     try:
         return await OpenAIChatResearcher(get_settings()).answer(
+            case_id=case_id,
             case_title=case.title,
             case_summary=summary or "",
             message=data.message.strip(),

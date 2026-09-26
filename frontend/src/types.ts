@@ -138,6 +138,51 @@ export type TimelineEvent = {
   people: LinkedPerson[]
 }
 
+type ResearchActionBase = {
+  label: string
+  method: 'POST'
+  endpoint: string
+}
+
+export type ResearchAction = ResearchActionBase & (
+  | {
+      action_type: 'timeline'
+      payload: {
+        occurred_on: string
+        title: string
+        description: string
+        evidence_ids: string[]
+        person_ids: string[]
+      }
+    }
+  | {
+      action_type: 'thread'
+      payload: {
+        title: string
+        body: string
+        thread_type: 'question' | 'theory' | 'evidence' | 'dispute'
+        evidence_ids: string[]
+        person_ids: string[]
+      }
+    }
+  | {
+      action_type: 'evidence'
+      payload: {
+        title: string
+        description: string | null
+        url: string
+        evidence_type: 'document' | 'image' | 'video' | 'audio' | 'link' | 'article' | 'other'
+        person_ids: string[]
+      }
+    }
+)
+
+export type ResearchChatResponse = {
+  answer: string
+  sources: { title: string; url: string }[]
+  action: ResearchAction | null
+}
+
 export type Evidence = {
   id: string
   title: string

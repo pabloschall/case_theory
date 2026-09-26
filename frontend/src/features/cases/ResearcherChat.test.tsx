@@ -21,6 +21,7 @@ describe("ResearcherChat", () => {
       sources: [
         { title: "Official case page", url: "https://example.gov/case" },
       ],
+      action: null,
     });
     const createNote = vi.spyOn(api, "createNotebookNote").mockResolvedValue({
       id: "note-1",
@@ -59,5 +60,47 @@ describe("ResearcherChat", () => {
     expect(
       await screen.findByRole("button", { name: "Saved to My Notes" }),
     ).toBeDisabled();
+  });
+
+  it("shows and confirms a structured action returned by the researcher", async () => {
+    const action = {
+      action_type: "timeline" as const,
+      label: "Add to timeline",
+      method: "POST" as const,
+      endpoint: "/cases/case-1/timeline",
+      payload: {
+        occurred_on: "2024-03-12",
+        title: "Officials published an update",
+        description: "The official case page published a dated update.",
+        evidence_ids: [],
+        person_ids: [],
+      },
+    };
+    vi.spyOn(api, "researchChat").mockResolvedValue({
+      answer: "I prepared a timeline event for your review.",
+      sources: [
+        { title: "Official case page", url: "https://example.gov/case" },
+      ],
+      action,
+    });
+    const executeAction = vi
+      .spyOn(api, "executeResearchAction")
+      .mockResolvedValue({});
+
+    render(<ResearcherChat caseId="case-1" title="Fictional Case" />);
+    fireEvent.change(screen.getByLabelText("Ask the researcher"), {
+      target: { value: "Add that date to the timeline" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(
+      await screen.findByText("POST /cases/case-1/timeline"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add to timeline" }));
+
+    await waitFor(() =>
+      expect(executeAction).toHaveBeenCalledWith("case-1", action),
+    );
+    expect(await screen.findByRole("button", { name: "Created" })).toBeDisabled();
   });
 });

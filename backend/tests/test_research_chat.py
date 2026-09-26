@@ -5,7 +5,13 @@ from httpx import AsyncClient
 from pytest import MonkeyPatch
 from sqlalchemy import select
 
-from app.ai.chat_research import ChatResearchResponse
+from app.ai.chat_research import (
+    ChatResearchResponse,
+    EvidenceActionDraft,
+    ResearchAction,
+    TimelineActionDraft,
+    build_research_action,
+)
 from app.ai.schemas import ResearchedSource
 from app.cases import routes as case_routes
 from app.db.session import SessionFactory
@@ -25,7 +31,54 @@ class StubResearcher:
         return ChatResearchResponse(
             answer="The public record does not establish an answer.",
             sources=[ResearchedSource(title="Public record", url="https://example.gov/case")],
+            action=ResearchAction(
+                action_type="timeline",
+                label="Add to timeline",
+                endpoint=f"/cases/{context['case_id']}/timeline",
+                payload={
+                    "occurred_on": "2024-03-12",
+                    "title": "Officials published an update",
+                    "description": "The official case page published a dated update.",
+                    "evidence_ids": [],
+                    "person_ids": [],
+                },
+            ),
         )
+
+
+def test_evidence_action_must_use_a_returned_research_source() -> None:
+    draft = EvidenceActionDraft(
+        action_type="evidence",
+        title="Official case page",
+        description="A public source consulted by the researcher.",
+        url="https://untrusted.example/story",
+        evidence_type="article",
+    )
+    action = build_research_action(
+        draft,
+        case_id=uuid.uuid4(),
+        sources=[ResearchedSource(title="Public record", url="https://example.gov/case")],
+    )
+    assert action is None
+
+
+def test_timeline_action_uses_the_case_scoped_endpoint_and_valid_payload() -> None:
+    case_id = uuid.uuid4()
+    action = build_research_action(
+        TimelineActionDraft(
+            action_type="timeline",
+            occurred_on="2024-03-12",
+            title="Officials published an update",
+            description="The official case page published a dated update.",
+        ),
+        case_id=case_id,
+        sources=[ResearchedSource(title="Public record", url="https://example.gov/case")],
+    )
+    assert action is not None
+    assert action.endpoint == f"/cases/{case_id}/timeline"
+    assert action.payload["occurred_on"] == "2024-03-12"
+    assert action.payload["evidence_ids"] == []
+    assert action.payload["description"].endswith("https://example.gov/case")
 
 
 async def test_research_chat_uses_stored_case_context_and_returns_sources(
@@ -73,6 +126,20 @@ async def test_research_chat_uses_stored_case_context_and_returns_sources(
 
     assert response.status_code == 200
     assert response.json()["sources"][0]["url"] == "https://example.gov/case"
+    assert response.json()["action"] == {
+        "action_type": "timeline",
+        "label": "Add to timeline",
+        "method": "POST",
+        "endpoint": f"/cases/{case_id}/timeline",
+        "payload": {
+            "occurred_on": "2024-03-12",
+            "title": "Officials published an update",
+            "description": "The official case page published a dated update.",
+            "evidence_ids": [],
+            "person_ids": [],
+        },
+    }
+    assert StubResearcher.calls[0]["case_id"] == uuid.UUID(case_id)
     assert StubResearcher.calls[0]["case_title"] == "Fictional Research Case"
     assert StubResearcher.calls[0]["case_summary"] == overview
     assert StubResearcher.calls[0]["message"] == "What do officials say?"
