@@ -4,6 +4,7 @@ export default {
   theme: {
     extend: {
       colors: {
+        navigation: 'rgb(var(--bg-navigation-rgb) / <alpha-value>)',
         background: 'rgb(var(--bg-primary-rgb) / <alpha-value>)',
         surface: 'rgb(var(--bg-secondary-rgb) / <alpha-value>)',
         tertiary: 'rgb(var(--bg-tertiary-rgb) / <alpha-value>)',

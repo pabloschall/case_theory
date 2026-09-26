@@ -2,16 +2,17 @@
   --font-display: "Cormorant Garamond", Georgia, serif;
   --font-ui: "Inter", system-ui, sans-serif;
 
-  --bg-primary: #0B1117;
-  --bg-secondary: #101820;
-  --bg-tertiary: #162029;
-  --bg-elevated: #18232D;
-  --bg-input: #0E161D;
+  --bg-navigation: #07192A;
+  --bg-primary: #0D2233;
+  --bg-secondary: #122B3E;
+  --bg-tertiary: #18364B;
+  --bg-elevated: #1C3C52;
+  --bg-input: #0A1E2E;
 
   --text-primary: #E8EDF1;
   --text-secondary: #AAB5BE;
-  --text-muted: #75818C;
-  --text-disabled: #505B64;
+  --text-muted: #8395A4;
+  --text-disabled: #607585;
 
   --accent-primary: #D5A64A;
   --accent-primary-hover: #E0B65C;
@@ -37,13 +38,14 @@
   --border-strong: rgba(255, 255, 255, 0.17);
   --border-accent: rgba(213, 166, 74, 0.45);
 
-  --bg-primary-rgb: 11 17 23;
-  --bg-secondary-rgb: 16 24 32;
-  --bg-tertiary-rgb: 22 32 41;
-  --bg-elevated-rgb: 24 35 45;
+  --bg-navigation-rgb: 7 25 42;
+  --bg-primary-rgb: 13 34 51;
+  --bg-secondary-rgb: 18 43 62;
+  --bg-tertiary-rgb: 24 54 75;
+  --bg-elevated-rgb: 28 60 82;
   --text-primary-rgb: 232 237 241;
   --text-secondary-rgb: 170 181 190;
-  --text-muted-rgb: 117 129 140;
+  --text-muted-rgb: 131 149 164;
   --accent-primary-rgb: 213 166 74;
   --accent-blue-rgb: 106 155 196;
   --accent-teal-rgb: 103 168 154;
