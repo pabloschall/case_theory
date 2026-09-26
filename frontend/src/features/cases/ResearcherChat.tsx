@@ -25,7 +25,7 @@ export function ResearcherChat({caseId, title}: {caseId: string; title: string})
         event.preventDefault()
         const question = draft.trim()
         if (!question || pending) return
-        const history = messages.slice(-12).map(({role, content}) => ({role, content}))
+        const history = messages.slice(-12).map(({role, content, sources}) => ({role, content, sources: sources ?? []}))
         setMessages((current) => [...current, {role: 'user', content: question}])
         setDraft('')
         setError('')

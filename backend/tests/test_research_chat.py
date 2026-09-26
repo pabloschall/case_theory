@@ -128,7 +128,14 @@ async def test_research_chat_uses_stored_case_context_and_returns_sources(
         headers=headers,
         json={
             "message": "What do officials say?",
-            "history": [{"role": "user", "content": "When did this happen?"}],
+            "history": [
+                {"role": "user", "content": "When did this happen?"},
+                {
+                    "role": "assistant",
+                    "content": "Officials published an update.",
+                    "sources": [{"title": "Public record", "url": "https://example.gov/case"}],
+                },
+            ],
         },
     )
 
@@ -152,6 +159,7 @@ async def test_research_chat_uses_stored_case_context_and_returns_sources(
     assert StubResearcher.calls[0]["case_summary"] == overview
     assert StubResearcher.calls[0]["message"] == "What do officials say?"
     assert StubResearcher.calls[0]["history"][0].content == "When did this happen?"
+    assert StubResearcher.calls[0]["history"][1].sources[0].url == "https://example.gov/case"
 
     async with SessionFactory() as db:
         free_plan = await db.scalar(select(SubscriptionPlan).where(SubscriptionPlan.code == "free"))

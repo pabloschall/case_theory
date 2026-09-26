@@ -76,23 +76,55 @@ describe("ResearcherChat", () => {
         person_ids: [],
       },
     };
-    vi.spyOn(api, "researchChat").mockResolvedValue({
-      answer: "I prepared a timeline event for your review.",
-      sources: [
-        { title: "Official case page", url: "https://example.gov/case" },
-      ],
-      action,
-    });
+    const source = {
+      title: "Official case page",
+      url: "https://example.gov/case",
+    };
+    const researchChat = vi
+      .spyOn(api, "researchChat")
+      .mockResolvedValueOnce({
+        answer: "Gabby was born on March 19, 1999, in New York.",
+        sources: [source],
+        action: null,
+      })
+      .mockResolvedValueOnce({
+        answer: "I prepared a timeline event for your review.",
+        sources: [source],
+        action,
+      });
     const executeAction = vi
       .spyOn(api, "executeResearchAction")
       .mockResolvedValue({});
 
     render(<ResearcherChat caseId="case-1" title="Fictional Case" />);
     fireEvent.change(screen.getByLabelText("Ask the researcher"), {
+      target: { value: "When and where was Gabby born?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await screen.findByText("Gabby was born on March 19, 1999, in New York.");
+
+    fireEvent.change(screen.getByLabelText("Ask the researcher"), {
       target: { value: "Add that date to the timeline" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
+    await waitFor(() =>
+      expect(researchChat).toHaveBeenLastCalledWith("case-1", {
+        message: "Add that date to the timeline",
+        history: [
+          {
+            role: "user",
+            content: "When and where was Gabby born?",
+            sources: [],
+          },
+          {
+            role: "assistant",
+            content: "Gabby was born on March 19, 1999, in New York.",
+            sources: [source],
+          },
+        ],
+      }),
+    );
     expect(
       await screen.findByText("POST /cases/case-1/timeline"),
     ).toBeInTheDocument();

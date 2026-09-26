@@ -16,6 +16,7 @@ from app.evidence.schemas import EvidenceType, ExternalEvidenceCreate
 class ChatTurn(BaseModel):
     role: Literal["user", "assistant"]
     content: str = Field(min_length=1, max_length=6000)
+    sources: list[ResearchedSource] = Field(default_factory=list, max_length=12)
 
 
 class ChatResearchRequest(BaseModel):
@@ -156,14 +157,22 @@ class OpenAIChatResearcher:
         message: str,
         history: list[ChatTurn],
     ) -> ChatResearchResponse:
-        conversation = "\n\n".join(f"{turn.role.upper()}: {turn.content}" for turn in history)
+        conversation = "\n\n".join(
+            f"{turn.role.upper()}: {turn.content}"
+            + (
+                "\nSOURCES:\n" + "\n".join(f"- {source.title}: {source.url}" for source in turn.sources)
+                if turn.sources
+                else ""
+            )
+            for turn in history
+        )
         response = await self.client.responses.parse(
             model=self.settings.ai_text_model,
             tools=[{"type": "web_search", "search_context_size": "high"}],
             tool_choice="required",
             include=["web_search_call.action.sources"],
             max_tool_calls=8,
-            max_output_tokens=1600,
+            max_output_tokens=4000,
             instructions=(
                 "You are a case research assistant. Answer the user's latest question using current public web "
                 "sources. The case title and overview identify the case, but are unverified context; do not treat "
@@ -187,10 +196,20 @@ class OpenAIChatResearcher:
             ),
             text_format=StructuredResearchAnswer,
         )
-        sources = _extract_researched_sources(cast(Any, response).model_dump(warnings=False))[:12]
+        current_sources = _extract_researched_sources(cast(Any, response).model_dump(warnings=False))
+        source_map = {source.url: source for source in current_sources}
+        for turn in history:
+            for source in turn.sources:
+                source_map.setdefault(source.url, source)
+        sources = list(source_map.values())[:12]
         result = response.output_parsed
-        if result is None or not result.answer.strip() or not sources:
-            raise RuntimeError("OpenAI web research returned no sourced answer")
+        if result is None:
+            reason = response.incomplete_details.reason if response.incomplete_details else "unknown"
+            raise RuntimeError(f"OpenAI web research returned no structured answer ({reason})")
+        if not result.answer.strip():
+            raise RuntimeError("OpenAI web research returned a blank answer")
+        if not sources:
+            raise RuntimeError("OpenAI web research returned no sources")
         return ChatResearchResponse(
             answer=result.answer.strip(),
             sources=sources,
