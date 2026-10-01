@@ -4,7 +4,7 @@ locals {
       schedule = "0 13 * * *"
     }
     historical = {
-      schedule = "0 14 * * 1"
+      schedule = "0 14 * * *"
     }
   } : {}
 
@@ -127,7 +127,7 @@ resource "google_cloud_scheduler_job" "scheduled_case" {
   project          = var.project_id
   region           = var.region
   name             = "${local.name_prefix}-${each.key}-draft"
-  description      = "Prepare one private ${each.key} case draft"
+  description      = "Generate one public ${each.key} case daily"
   schedule         = each.value.schedule
   time_zone        = "Etc/UTC"
   attempt_deadline = "320s"

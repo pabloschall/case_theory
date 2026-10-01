@@ -3,10 +3,18 @@ import uuid
 from urllib.parse import urlsplit
 
 from sqlalchemy import delete, func, select, update
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.ai.openai_provider import OpenAICaseGenerator
-from app.cases.models import Case, CaseGenerationJob, CaseSummary, Source, TimelineEvent, TimelineEventSource
+from app.cases.models import (
+    Case,
+    CaseGenerationJob,
+    CaseSource,
+    CaseSummary,
+    Source,
+    TimelineEvent,
+    TimelineEventSource,
+)
 from app.cases.timeline_dates import parse_timeline_date, parse_timeline_time
 from app.common.timestamps import utc_now
 from app.config.settings import get_settings
@@ -23,6 +31,19 @@ from app.workers.celery_app import celery_app
 @celery_app.task(name="case.generate", bind=True, max_retries=2)  # type: ignore[untyped-decorator]
 def generate_case(self: object, case_id: str, job_id: str) -> None:
     asyncio.run(_generate_case(uuid.UUID(case_id), uuid.UUID(job_id)))
+
+
+async def _complete_generation(db: AsyncSession, case: Case, job: CaseGenerationJob) -> None:
+    case.ai_research_status = "complete"
+    case.status = "active"
+    job.status = "complete"
+    job.completed_at = utc_now()
+    scheduled = await db.scalar(
+        select(CaseSource.id).where(CaseSource.case_id == case.id, CaseSource.source_type == "scheduled_run")
+    )
+    if scheduled is not None:
+        case.privacy = "public"
+    await db.commit()
 
 
 async def _generate_case(case_id: uuid.UUID, job_id: uuid.UUID) -> None:
@@ -282,11 +303,7 @@ async def _generate_case(case_id: uuid.UUID, job_id: uuid.UUID) -> None:
                     str(case.id), draft.banner_prompt
                 )
                 case.cover_image_url = f"/api/v1/cases/{case.id}/cover"
-                case.ai_research_status = "complete"
-                case.status = "active"
-                job.status = "complete"
-                job.completed_at = utc_now()
-                await db.commit()
+                await _complete_generation(db, case, job)
                 if previous_cover_key and previous_cover_key != case.cover_image_object_key:
                     try:
                         await storage.delete(previous_cover_key)

@@ -1,4 +1,4 @@
-"""Discover a case through live web search and prepare a private research draft."""
+"""Discover, generate, and publish a case through live web search."""
 
 import argparse
 import asyncio
@@ -137,10 +137,7 @@ def _candidate(proposal: DiscoveryProposal, searched: dict[str, str], lane: Lane
 
 
 def run_key(lane: Lane, now: datetime) -> str:
-    if lane == "recent":
-        return f"recent:{now.date().isoformat()}"
-    year, week, _ = now.isocalendar()
-    return f"historical:{year}-W{week:02d}"
+    return f"{lane}:{now.date().isoformat()}"
 
 
 async def discover_candidates(
@@ -354,7 +351,7 @@ async def run(lane: Lane, *, dry_run: bool = False) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Prepare one private scheduled case draft")
+    parser = argparse.ArgumentParser(description="Generate and publish one scheduled case")
     parser.add_argument("lane", choices=("recent", "historical"))
     parser.add_argument("--dry-run", action="store_true", help="Select a candidate without creating a case")
     arguments = parser.parse_args()

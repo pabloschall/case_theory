@@ -8,6 +8,7 @@ from sqlalchemy import select
 import app.scheduled_cases as scheduled_cases
 from app.cases.models import Case, CaseGenerationJob, CaseSource
 from app.cases.service import CaseService, to_case_read
+from app.cases.tasks import _complete_generation
 from app.db.seed import SCHEDULED_CASE_OWNER_EMAIL, seed_scheduled_case_owner
 from app.db.session import SessionFactory
 from app.scheduled_cases import (
@@ -89,7 +90,7 @@ async def test_discovery_rejects_stale_news_and_nonhistorical_cases() -> None:
     too_new = mock_client([proposal(published_date=None, year=2020)])
     assert await discover_candidates(too_new, "gpt-5-mini", "historical", NOW, []) == []
     assert run_key("recent", NOW) == "recent:2026-09-30"
-    assert run_key("historical", NOW) == "historical:2026-W40"
+    assert run_key("historical", NOW) == "historical:2026-09-30"
 
 
 async def test_scheduled_draft_is_private_and_source_claim_is_unique() -> None:
@@ -103,7 +104,7 @@ async def test_scheduled_draft_is_private_and_source_claim_is_unique() -> None:
         assert owner is not None and not owner.is_active
         assert await select_candidate(db, [candidate]) == candidate
 
-        created = await create_draft(db, candidate, "historical:2026-W40")
+        created = await create_draft(db, candidate, "historical:2026-09-30")
         assert created is not None
         case_id, job_id = created
         case = await db.get(Case, case_id)
@@ -119,14 +120,18 @@ async def test_scheduled_draft_is_private_and_source_claim_is_unique() -> None:
         detail = to_case_read(await CaseService(db).get(case_id), None)
         assert [item.source_type for item in detail.external_sources] == ["web_discovery"]
         assert await select_candidate(db, [candidate]) is None
-        assert await create_draft(db, candidate, "historical:2026-W40") is None
+        assert await create_draft(db, candidate, "historical:2026-09-30") is None
         other = scheduled_cases.Candidate(**{**candidate.__dict__, "external_id": "other", "source_url": SECOND})
-        assert await create_draft(db, other, "historical:2026-W40") is None
+        assert await create_draft(db, other, "historical:2026-09-30") is None
         job.status = "running"
         await db.commit()
         assert await pending_run(db, case_id) is None
         public_cases, total = await CaseService(db).search()
         assert public_cases == [] and total == 0
+        await _complete_generation(db, case, job)
+        assert case.privacy == "public" and case.status == "active"
+        public_cases, total = await CaseService(db).search()
+        assert len(public_cases) == 1 and total == 1
 
 
 async def test_scheduled_run_resumes_a_queued_draft(monkeypatch: pytest.MonkeyPatch) -> None:
