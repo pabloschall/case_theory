@@ -18,6 +18,7 @@ locals {
 
   apply_project_roles = toset([
     "roles/artifactregistry.admin",
+    "roles/cloudscheduler.admin",
     "roles/cloudsql.admin",
     "roles/compute.networkAdmin",
     "roles/iam.serviceAccountAdmin",

@@ -150,5 +150,9 @@ resource "google_cloud_scheduler_job" "scheduled_case" {
     }
   }
 
-  depends_on = [module.project_services, google_cloud_run_v2_job_iam_member.scheduled_case_invoker]
+  depends_on = [
+    module.github_actions_identity,
+    module.project_services,
+    google_cloud_run_v2_job_iam_member.scheduled_case_invoker,
+  ]
 }

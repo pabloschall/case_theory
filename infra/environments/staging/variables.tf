@@ -52,7 +52,7 @@ variable "enable_redis" {
 }
 
 variable "enable_scheduled_cases" {
-  description = "Create the scheduled private case draft jobs after the backend image, database, and secrets are ready."
+  description = "Create the daily case generation jobs after the backend image, database, and secrets are ready."
   type        = bool
   default     = false
 }
