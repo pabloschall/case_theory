@@ -8,7 +8,6 @@ import { ResetPasswordPage } from '../features/auth/ResetPasswordPage'
 import { VerifyEmailPage } from '../features/auth/VerifyEmailPage'
 import { LegalPage } from '../features/auth/LegalPage'
 import { HomePage } from '../features/home/HomePage'
-import { LandingPage } from '../features/home/LandingPage'
 import { MyDeskPage } from '../features/home/MyDeskPage'
 import { ProfilePage } from '../features/home/ProfilePage'
 import { CreateCasePage } from '../features/cases/CreateCasePage'
@@ -39,7 +38,7 @@ function AdminOnly() {
 }
 
 const router = createBrowserRouter([
-  { path: '/', element: <LandingPage /> },
+  { path: '/', element: <Navigate to="/cases" replace /> },
   { path: '/login', element: <LoginPage /> },
   { path: '/register', element: <RegisterPage /> },
   { path: '/forgot-password', element: <ForgotPasswordPage /> },
@@ -72,7 +71,7 @@ const router = createBrowserRouter([
       ],
     },
   ] },
-  { path: '*', element: <Navigate to="/" replace /> },
+  { path: '*', element: <Navigate to="/cases" replace /> },
 ])
 
 export function App() { return <RouterProvider router={router} /> }

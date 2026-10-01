@@ -31,7 +31,7 @@ export function HomePage() {
         <p className="eyebrow">Case directory</p>
         <h1 className="page-title mt-5 max-w-3xl sm:text-5xl">Explore public investigations.</h1>
         <p className="mt-5 max-w-xl text-[15px] leading-7 text-secondary">Search sourced public cases by name, year, or location, then inspect the timeline, evidence, discussion, map, and people connected to each investigation.</p>
-        <form onSubmit={submit} className="mt-8 flex flex-col gap-2 sm:flex-row"><label className="relative flex-1"><span className="sr-only">Search public cases</span><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18}/><input value={input} onChange={(event) => setInput(event.target.value)} className="field pl-12" placeholder="Search name, year, or location" /></label><button className="primary-button px-6">Search cases</button></form>
+        <form onSubmit={submit} className="mt-8 flex max-w-xl flex-col gap-2 sm:flex-row"><label className="relative flex-1"><span className="sr-only">Search public cases</span><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18}/><input value={input} onChange={(event) => setInput(event.target.value)} className="field pl-12" placeholder="Search name, year, or location" /></label><button className="primary-button px-6">Search cases</button></form>
       </div>
     </section>
 
