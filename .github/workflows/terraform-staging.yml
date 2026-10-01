@@ -29,6 +29,7 @@ env:
   TF_VAR_frontend_origin: ${{ vars.STAGING_FRONTEND_ORIGIN || 'https://case-theory-stg-frontend-h7posfqqva-uc.a.run.app' }}
   TF_VAR_enable_cloud_sql: "true"
   TF_VAR_enable_redis: "true"
+  TF_VAR_enable_scheduled_cases: ${{ vars.ENABLE_SCHEDULED_CASES || 'false' }}
 
 jobs:
   plan:
@@ -68,6 +69,19 @@ jobs:
         with:
           terraform_version: 1.14.7
           terraform_wrapper: false
+
+      - name: Resolve scheduled case backend image
+        if: ${{ env.TF_VAR_enable_scheduled_cases == 'true' }}
+        run: |
+          image="$(gcloud run services describe case-theory-stg-api \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --format='value(spec.template.spec.containers[0].image)')"
+          if [[ -z "$image" ]]; then
+            echo "Staging API has no deployed backend image." >&2
+            exit 1
+          fi
+          echo "TF_VAR_scheduled_cases_backend_image=$image" >> "$GITHUB_ENV"
 
       - name: Check formatting
         run: terraform fmt -check -recursive infra

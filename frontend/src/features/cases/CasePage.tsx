@@ -112,7 +112,7 @@ export function CasePage() {
                             className="secondary-button w-fit border-accent/45 text-xs text-accent"><RefreshCw size={15}
                                                                                                                 className={research.isPending ? 'animate-spin' : ''}/>{research.isPending ? 'Queuing research…' : 'Research again'}
                     </button>}{currentUser && (canInvite ?
-                    <InviteCollaborators caseId={item.id}/> : <UpgradeButton description="Inviting collaborators is available on the Investigator plan.">Invite person</UpgradeButton>)} {item.is_owner && (currentUser?.permissions.includes('case.private') ? <label
+                    <InviteCollaborators caseId={item.id}/> : <UpgradeButton description="Inviting collaborators is available on the Investigator plan.">Invite person</UpgradeButton>)} {(item.is_owner || isAdmin) && (currentUser?.permissions.includes('case.private') ? <label
                     className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-default bg-background/70 px-3 text-xs text-secondary"><span>Visibility</span><select
                     value={item.privacy} disabled={privacyMutation.isPending}
                     onChange={(event) => privacyMutation.mutate(event.target.value as 'public' | 'private')}

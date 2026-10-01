@@ -1,6 +1,6 @@
 TERRAFORM ?= ./scripts/terraform
 
-.PHONY: dev test test-backend test-frontend migrate migration seed lint format typecheck terraform-fmt terraform-validate
+.PHONY: dev test test-backend test-frontend migrate migration seed lint format typecheck terraform-fmt terraform-validate preview-recent-case preview-historical-case create-recent-case create-historical-case
 
 dev:
 	docker compose up --build
@@ -21,6 +21,18 @@ migration:
 
 seed:
 	cd backend && python -m app.db.seed
+
+preview-recent-case:
+	docker compose run --rm backend python -m app.scheduled_cases recent --dry-run
+
+preview-historical-case:
+	docker compose run --rm backend python -m app.scheduled_cases historical --dry-run
+
+create-recent-case:
+	docker compose run --rm backend python -m app.scheduled_cases recent
+
+create-historical-case:
+	docker compose run --rm backend python -m app.scheduled_cases historical
 
 lint:
 	cd backend && ruff check .

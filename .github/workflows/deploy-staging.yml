@@ -252,7 +252,20 @@ jobs:
             --retry 12 \
             --retry-delay 5 \
             --retry-all-errors \
-            "$API_URL/health"
+          "$API_URL/health"
+
+      - name: Update scheduled case jobs
+        run: |
+          for lane in recent historical; do
+            job="case-theory-stg-${lane}-draft"
+            if gcloud run jobs describe "$job" --project="$PROJECT_ID" --region="$REGION" >/dev/null 2>&1; then
+              gcloud run jobs update "$job" \
+                --project="$PROJECT_ID" \
+                --region="$REGION" \
+                --image="$BACKEND_IMAGE" \
+                --quiet
+            fi
+          done
 
       - name: Record deployed images
         run: |

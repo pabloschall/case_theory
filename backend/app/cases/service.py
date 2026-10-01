@@ -108,7 +108,11 @@ def to_case_read(
             for item in sorted(case.timeline, key=timeline_sort_key)
         ],
         sources=[SourceRead.model_validate(source) for source in sorted(case.sources, key=lambda item: item.position)],
-        external_sources=[CaseSourceRead.model_validate(source) for source in case.external_sources],
+        external_sources=[
+            CaseSourceRead.model_validate(source)
+            for source in case.external_sources
+            if source.source_type != "scheduled_run"
+        ],
         created_at=case.created_at,
     )
 

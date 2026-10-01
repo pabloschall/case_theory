@@ -51,6 +51,18 @@ variable "enable_redis" {
   default     = false
 }
 
+variable "enable_scheduled_cases" {
+  description = "Create the scheduled private case draft jobs after the backend image, database, and secrets are ready."
+  type        = bool
+  default     = false
+}
+
+variable "scheduled_cases_backend_image" {
+  description = "Immutable backend image URL used by scheduled case jobs; required when enable_scheduled_cases is true."
+  type        = string
+  default     = ""
+}
+
 variable "cloud_sql_tier" {
   description = "Cloud SQL machine tier used after enable_cloud_sql is set."
   type        = string

@@ -1,4 +1,5 @@
 import asyncio
+import secrets
 from dataclasses import dataclass
 from typing import cast
 
@@ -12,6 +13,7 @@ from app.subscriptions.models import Permission, PlanPermission, SubscriptionPla
 from app.users.models import User, UserProfile
 
 DEMO_PASSWORD = "EillenDemo2026!"
+SCHEDULED_CASE_OWNER_EMAIL = "scheduled-cases@case-theory.invalid"
 
 
 @dataclass(frozen=True)
@@ -155,9 +157,29 @@ async def seed() -> None:
                     PlanPermission.permission_id.not_in(allowed_ids),
                 )
             )
+        await seed_scheduled_case_owner(db)
         if get_settings().environment == "development":
             await seed_demo_users(db, plan_by_code)
         await db.commit()
+
+
+async def seed_scheduled_case_owner(db: AsyncSession) -> None:
+    """Create an inactive account to own private scheduled drafts."""
+    user = await db.scalar(select(User).where(User.email == SCHEDULED_CASE_OWNER_EMAIL))
+    if user is None:
+        user = User(
+            email=SCHEDULED_CASE_OWNER_EMAIL,
+            username="scheduled_cases",
+            password_hash=hash_password(secrets.token_urlsafe(48)),
+            is_active=False,
+            is_verified=False,
+        )
+        db.add(user)
+        await db.flush()
+    user.is_active = False
+    profile = await db.get(UserProfile, user.id)
+    if profile is None:
+        db.add(UserProfile(user_id=user.id, display_name="Case Theory Research"))
 
 
 async def seed_demo_users(
