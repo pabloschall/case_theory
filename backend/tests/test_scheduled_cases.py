@@ -44,14 +44,12 @@ def proposal(
 def mock_client(proposals: list[DiscoveryProposal]) -> SimpleNamespace:
     response = SimpleNamespace(
         output_parsed=DiscoveryResult(candidates=proposals),
-        model_dump=lambda: {
-            "output": [
-                {
-                    "type": "web_search_call",
-                    "action": {"sources": [{"url": FIRST}, {"url": SECOND}]},
-                }
-            ]
-        },
+        output=[
+            SimpleNamespace(
+                type="web_search_call",
+                action=SimpleNamespace(sources=[{"url": FIRST}, {"url": SECOND}]),
+            )
+        ],
     )
     return SimpleNamespace(responses=SimpleNamespace(parse=AsyncMock(return_value=response)))
 
@@ -91,6 +89,24 @@ async def test_discovery_rejects_stale_news_and_nonhistorical_cases() -> None:
     assert await discover_candidates(too_new, "gpt-5-mini", "historical", NOW, []) == []
     assert run_key("recent", NOW) == "recent:2026-09-30"
     assert run_key("historical", NOW) == "historical:2026-09-30"
+
+
+async def test_discovery_handles_null_web_sources_and_uses_cited_urls() -> None:
+    client = mock_client([proposal(published_date=None, urls=[FIRST])])
+    client.responses.parse.return_value.output = [
+        SimpleNamespace(type="web_search_call", action=SimpleNamespace(sources=None)),
+        SimpleNamespace(
+            type="message",
+            content=[
+                SimpleNamespace(
+                    annotations=[SimpleNamespace(type="url_citation", url=FIRST)]
+                )
+            ],
+        ),
+    ]
+    candidates = await discover_candidates(client, "gpt-5-mini", "historical", NOW, [])
+    assert len(candidates) == 1
+    assert candidates[0].source_url == FIRST
 
 
 async def test_scheduled_draft_is_private_and_source_claim_is_unique() -> None:

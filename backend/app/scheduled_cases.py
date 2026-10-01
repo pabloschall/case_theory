@@ -58,7 +58,10 @@ class DiscoveryResult(BaseModel):
 
 
 def _canonical_url(value: str) -> str | None:
-    parsed = urlsplit(value.strip())
+    try:
+        parsed = urlsplit(value.strip())
+    except ValueError:
+        return None
     if parsed.scheme.lower() != "https" or not parsed.hostname or parsed.username or parsed.password:
         return None
     hostname = parsed.hostname.lower().removeprefix("www.")
@@ -66,20 +69,36 @@ def _canonical_url(value: str) -> str | None:
     return urlunsplit(("https", hostname, path, "", ""))
 
 
-def _searched_urls(payload: dict[str, Any]) -> dict[str, str]:
-    """Only trust URLs recorded in the web search call's source list."""
+def _field(value: Any, name: str) -> Any:
+    return value.get(name) if isinstance(value, dict) else getattr(value, name, None)
+
+
+def _searched_urls(output: list[Any]) -> dict[str, str]:
+    """Only trust URLs returned as web search sources or citations."""
     found: dict[str, str] = {}
-    for item in payload.get("output", []):
-        if not isinstance(item, dict) or item.get("type") != "web_search_call":
-            continue
-        action = item.get("action")
-        if not isinstance(action, dict):
-            continue
-        for source in action.get("sources", []):
-            if isinstance(source, dict) and isinstance(source.get("url"), str):
-                canonical = _canonical_url(source["url"])
-                if canonical:
-                    found.setdefault(canonical, source["url"])
+
+    def remember(value: Any) -> None:
+        url = _field(value, "url")
+        if isinstance(url, str):
+            canonical = _canonical_url(url)
+            if canonical:
+                found.setdefault(canonical, url)
+
+    for item in output:
+        if _field(item, "type") == "web_search_call":
+            sources = _field(_field(item, "action"), "sources")
+            if isinstance(sources, list):
+                for source in sources:
+                    remember(source)
+        elif _field(item, "type") == "message":
+            content = _field(item, "content")
+            if isinstance(content, list):
+                for part in content:
+                    annotations = _field(part, "annotations")
+                    if isinstance(annotations, list):
+                        for annotation in annotations:
+                            if _field(annotation, "type") == "url_citation":
+                                remember(annotation)
     return found
 
 
@@ -177,7 +196,7 @@ async def discover_candidates(
     )
     if response.output_parsed is None:
         raise RuntimeError("Web search returned no structured case candidates")
-    searched = _searched_urls(response.model_dump())
+    searched = _searched_urls(response.output)
     if not searched:
         raise RuntimeError("Web search returned no inspectable source URLs")
     candidates: dict[str, Candidate] = {}
