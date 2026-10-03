@@ -15,7 +15,7 @@ export function HomePage() {
   const [sort, setSort] = useState<CaseSort>('newest')
   const [page, setPage] = useState(1)
   const { data: currentUser } = useQuery({ queryKey: ['current-user'], queryFn: api.currentUser, retry: false })
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isError } = useQuery({
     queryKey: ['cases', 'directory', search, sort, page],
     queryFn: () => api.searchCases(search, sort, page),
     placeholderData: keepPreviousData,
@@ -44,7 +44,7 @@ export function HomePage() {
           <button type="button" onClick={() => changeSort('popular')} className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md px-4 text-xs font-semibold transition sm:flex-none ${sort === 'popular' ? 'bg-accent-muted text-accent' : 'text-muted hover:text-primary'}`}><MessageSquare size={15}/>Most discussed</button>
         </div>
       </div>
-      {results.length ? <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{results.map((item) => <CaseCard key={item.id} item={item} showFollow={Boolean(currentUser)}/>)}</div> : <div className="mt-5"><EmptyState icon={FileSearch} title="No public cases found">Try a different name, year, or location.</EmptyState></div>}
+      {results.length ? <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{results.map((item) => <CaseCard key={item.id} item={item} showFollow={Boolean(currentUser)}/>)}</div> : isFetching ? <div role="status" className="card mt-5 grid min-h-56 place-items-center p-8 text-center"><div><Sparkles className="mx-auto animate-pulse text-accent"/><p className="mt-4 text-sm text-muted">Loading public cases…</p></div></div> : isError ? <p role="alert" className="error-banner mt-5">Public cases could not be loaded. Please try again.</p> : <div className="mt-5"><EmptyState icon={FileSearch} title="No public cases found">Try a different name, year, or location.</EmptyState></div>}
       {data && data.total_pages > 1 && <nav className="mt-7 flex items-center justify-between gap-3" aria-label="Case directory pages">
         <button type="button" className="secondary-button min-w-0 px-3 sm:px-4" disabled={!data.has_previous || isFetching} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft size={16}/> Previous</button>
         <span className="metadata text-center">Page {data.page} of {data.total_pages}</span>
