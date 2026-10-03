@@ -24,6 +24,7 @@ from app.moderation.routes import router as moderation_router
 from app.notes.routes import router as notes_router
 from app.people.routes import router as people_router
 from app.progression.routes import router as progression_router
+from app.seo import router as seo_router
 from app.subscriptions.routes import router as subscription_router
 from app.users.routes import router as user_router
 
@@ -71,6 +72,7 @@ app.include_router(invitations_router, prefix=settings.api_prefix)
 app.include_router(messaging_router, prefix=settings.api_prefix)
 app.include_router(notes_router, prefix=settings.api_prefix)
 app.include_router(moderation_router, prefix=settings.api_prefix)
+app.include_router(seo_router)
 if settings.storage_provider == "fake_gcs":
     app.mount("/media", StaticFiles(directory=settings.local_storage_path, check_dir=False), name="media")
 

@@ -153,6 +153,7 @@ jobs:
           ENVIRONMENT: "staging"
           COOKIE_SECURE: "true"
           FRONTEND_URL: "https://staging.invalid"
+          PUBLIC_SITE_URL: "https://case-researcher.com"
           ALLOWED_HOSTS: '["*"]'
           REDIS_URL: "$REDIS_URL"
           STORAGE_PROVIDER: "gcs"

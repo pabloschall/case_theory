@@ -6,6 +6,7 @@ import { Link } from 'react-router'
 import { api } from '../../services/api'
 import { EmptyState, SectionHeader } from '../../components/ui/Visual'
 import { CaseCard } from '../cases/CaseCard'
+import { Seo } from '../../components/Seo'
 
 type CaseSort = 'newest' | 'popular'
 
@@ -25,6 +26,7 @@ export function HomePage() {
   const changeSort = (nextSort: CaseSort) => { setPage(1); setSort(nextSort) }
 
   return <div>
+    <Seo title="Public Case Investigations | Case Theory" description="Explore sourced public investigations, case timelines, and research. Search recent and historical cases on Case Theory." path="/cases" />
     <section className="surface p-5 sm:p-6">
       <h1 className="sr-only">Case directory</h1>
       <label htmlFor="case-directory-search" className="eyebrow block">Search cases</label>

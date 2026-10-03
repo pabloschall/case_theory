@@ -16,6 +16,7 @@ import {APP_NAME} from '../../config/brand'
 import {MyNotesPanel} from '../notes/MyNotesPanel'
 import {MyTimelinePanel} from '../timeline/MyTimelinePanel'
 import {ResearcherChat} from './ResearcherChat'
+import {Seo} from '../../components/Seo'
 
 const tabs = ['Overview', 'Researcher', 'Discussion', 'Timeline', 'Evidence', 'Map', 'People', 'My Notes', 'My Timeline'] as const
 type Tab = typeof tabs[number]
@@ -63,7 +64,7 @@ export function CasePage() {
 
     if (query.isLoading) return <div className="grid min-h-[60vh] place-items-center"><Sparkles
         className="animate-pulse text-accent"/></div>
-    if (!item) return <div className="card p-8 text-center text-muted">Case could not be loaded.</div>
+    if (!item) return <div className="card p-8 text-center text-muted"><Seo title="Case unavailable | Case Theory" description="This case is unavailable." path={`/cases/${caseId}`} noindex/>Case could not be loaded.</div>
     const importedFromFbi = item.external_sources.some((source) => source.source_type === 'fbi')
     const caseMetadata = [item.year, item.location].filter(Boolean).join(' · ')
     const canResearch = currentUser?.permissions.includes('ai.research') ?? false
@@ -78,6 +79,7 @@ export function CasePage() {
     const canViewPeople = item.privacy === 'public' || (currentUser?.permissions.includes('people.read') ?? false)
     const canWriteNotes = currentUser?.permissions.includes('notes.write') ?? false
     return <div className="min-w-0 max-w-full overflow-x-clip">
+        <Seo title={`${item.title} | Case Theory`} description={(item.summary?.body || [item.title, item.year, item.location].filter(Boolean).join(' · ')).replace(/\s+/g, ' ').slice(0, 160)} path={`/cases/${item.id}`} image={item.cover_image_url} noindex={item.privacy !== 'public'}/>
         <Link to="/cases" className="ghost-button px-0 text-xs"><ArrowLeft size={15}/> Case directory</Link>
         <header className="surface relative mt-5 overflow-hidden"><img src={item.cover_image_url || '/case-banner.png'}
                                                                        alt="Symbolic editorial case banner"

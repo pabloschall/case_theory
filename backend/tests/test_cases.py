@@ -1,4 +1,5 @@
 import uuid
+from xml.etree import ElementTree
 
 import pytest
 from httpx import AsyncClient
@@ -7,6 +8,7 @@ from sqlalchemy import select
 
 from app.cases import routes
 from app.cases.models import Case, Source, TimelineEvent, TimelineEventSource
+from app.config.settings import get_settings
 from app.db.session import SessionFactory
 from app.users.models import User
 
@@ -68,6 +70,16 @@ async def test_create_search_and_open_case(client: AsyncClient, monkeypatch: Mon
     assert search.json()["page_size"] == 12
     assert search.json()["total"] == 1
     assert search.json()["has_next"] is False
+
+    sitemap_response = await client.get("/sitemap.xml")
+    assert sitemap_response.status_code == 200
+    assert sitemap_response.headers["content-type"].startswith("application/xml")
+    sitemap = ElementTree.fromstring(sitemap_response.content)
+    locations = {
+        node.text for node in sitemap.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc")
+    }
+    assert f"{get_settings().public_site_url}/cases" in locations
+    assert f"{get_settings().public_site_url}/cases/{case['id']}" in locations
 
     year_search = await client.get("/api/v1/cases?q=1998")
     assert year_search.status_code == 200
@@ -561,6 +573,9 @@ async def test_private_case_requires_verified_account_and_is_owner_only(
     assert private_case["privacy"] == "private"
     assert private_case["is_owner"] is True
     assert private_case["owner"]["username"] == "private_owner"
+
+    sitemap_response = await client.get("/sitemap.xml")
+    assert f"/cases/{private_case['id']}" not in sitemap_response.text
 
     public_search = await client.get("/api/v1/cases?q=Northpoint")
     assert public_search.status_code == 200

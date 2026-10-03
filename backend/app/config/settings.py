@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     database_pool_recycle_seconds: int = Field(default=1800, ge=60)
     redis_url: str = "redis://localhost:6379/0"
     frontend_url: str = "http://localhost:5173"
+    public_site_url: str = "http://localhost:5173"
     cookie_secure: bool = False
     cookie_domain: str | None = None
     access_token_minutes: int = 15

@@ -87,8 +87,10 @@ async def test_discovery_rejects_stale_news_and_nonhistorical_cases() -> None:
     assert await discover_candidates(single_source, "gpt-5-mini", "recent", NOW, []) == []
     too_new = mock_client([proposal(published_date=None, year=2020)])
     assert await discover_candidates(too_new, "gpt-5-mini", "historical", NOW, []) == []
-    assert run_key("recent", NOW) == "recent:2026-09-30"
-    assert run_key("historical", NOW) == "historical:2026-09-30"
+    assert run_key("recent", NOW) == "recent:2026-09-30:am"
+    assert run_key("historical", NOW.replace(hour=11)) == "historical:2026-09-30:am"
+    assert run_key("recent", NOW.replace(hour=12)) == "recent:2026-09-30:pm"
+    assert run_key("historical", NOW.replace(hour=23)) == "historical:2026-09-30:pm"
 
 
 async def test_discovery_handles_null_web_sources_and_uses_cited_urls() -> None:

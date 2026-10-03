@@ -156,7 +156,8 @@ def _candidate(proposal: DiscoveryProposal, searched: dict[str, str], lane: Lane
 
 
 def run_key(lane: Lane, now: datetime) -> str:
-    return f"{lane}:{now.date().isoformat()}"
+    slot = "am" if now.hour < 12 else "pm"
+    return f"{lane}:{now.date().isoformat()}:{slot}"
 
 
 async def discover_candidates(
