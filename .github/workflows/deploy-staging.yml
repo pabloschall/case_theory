@@ -29,6 +29,7 @@ jobs:
       FRONTEND_SERVICE: ${{ vars.GCP_FRONTEND_SERVICE }}
       WORKER_POOL: ${{ vars.GCP_WORKER_POOL }}
       MIGRATION_JOB: ${{ vars.GCP_MIGRATION_JOB }}
+      STAGING_FRONTEND_ORIGIN: ${{ vars.STAGING_FRONTEND_ORIGIN }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -196,7 +197,7 @@ jobs:
             --project="$PROJECT_ID" \
             --region="$REGION" \
             --format='value(status.url)')"
-          echo "FRONTEND_URL=$frontend_url" >> "$GITHUB_ENV"
+          echo "FRONTEND_URL=${STAGING_FRONTEND_ORIGIN:-$frontend_url}" >> "$GITHUB_ENV"
 
       - name: Set public frontend origin on API
         run: |

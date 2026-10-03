@@ -39,6 +39,17 @@ variable "frontend_origin" {
   }
 }
 
+variable "custom_domain" {
+  description = "Optional public domain for the staging frontend load balancer, without a scheme or path."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.custom_domain == "" || can(regex("^[a-z0-9-]+(\\.[a-z0-9-]+)+$", var.custom_domain))
+    error_message = "custom_domain must be a lowercase DNS name without https:// or a path."
+  }
+}
+
 variable "enable_cloud_sql" {
   description = "Create the recurring-cost Cloud SQL staging instance."
   type        = bool

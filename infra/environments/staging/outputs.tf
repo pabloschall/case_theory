@@ -47,3 +47,8 @@ output "github_actions" {
     service_accounts           = module.github_actions_identity.service_account_emails
   }
 }
+
+output "custom_domain_ipv4" {
+  description = "Add HostGator A records for @ and www with this address after enabling custom_domain."
+  value       = var.custom_domain == "" ? null : google_compute_global_address.frontend[0].address
+}

@@ -21,6 +21,8 @@ locals {
     "roles/cloudscheduler.admin",
     "roles/cloudsql.admin",
     "roles/compute.networkAdmin",
+    "roles/compute.instanceAdmin.v1",
+    "roles/compute.securityAdmin",
     "roles/iam.serviceAccountAdmin",
     "roles/iam.serviceAccountUser",
     "roles/iam.workloadIdentityPoolAdmin",

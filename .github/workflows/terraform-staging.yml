@@ -27,6 +27,7 @@ env:
   TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
   TF_VAR_region: ${{ vars.GCP_REGION }}
   TF_VAR_frontend_origin: ${{ vars.STAGING_FRONTEND_ORIGIN || 'https://case-theory-stg-frontend-h7posfqqva-uc.a.run.app' }}
+  TF_VAR_custom_domain: ${{ vars.STAGING_CUSTOM_DOMAIN || '' }}
   TF_VAR_enable_cloud_sql: "true"
   TF_VAR_enable_redis: "true"
   TF_VAR_enable_scheduled_cases: ${{ vars.ENABLE_SCHEDULED_CASES || 'false' }}
