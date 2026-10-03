@@ -25,14 +25,10 @@ export function HomePage() {
   const changeSort = (nextSort: CaseSort) => { setPage(1); setSort(nextSort) }
 
   return <div>
-    <section className="surface relative overflow-hidden">
-      <div className="absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,rgba(106,155,196,.12),transparent_68%)]" />
-      <div className="relative p-6 sm:p-8 lg:p-10">
-        <p className="eyebrow">Case directory</p>
-        <h1 className="page-title mt-5 max-w-3xl sm:text-5xl">Explore public investigations.</h1>
-        <p className="mt-5 max-w-xl text-[15px] leading-7 text-secondary">Search sourced public cases by name, year, or location, then inspect the timeline, evidence, discussion, map, and people connected to each investigation.</p>
-        <form onSubmit={submit} className="mt-8 flex max-w-xl flex-col gap-2 sm:flex-row"><label className="relative flex-1"><span className="sr-only">Search public cases</span><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18}/><input value={input} onChange={(event) => setInput(event.target.value)} className="field pl-12" placeholder="Search name, year, or location" /></label><button className="primary-button px-6">Search cases</button></form>
-      </div>
+    <section className="surface p-5 sm:p-6">
+      <h1 className="sr-only">Case directory</h1>
+      <label htmlFor="case-directory-search" className="eyebrow block">Search cases</label>
+      <form onSubmit={submit} className="mt-4 flex max-w-xl flex-col gap-2 sm:flex-row"><div className="relative flex-1"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18}/><input id="case-directory-search" value={input} onChange={(event) => setInput(event.target.value)} className="field pl-12" placeholder="Search name, year, or location" /></div><button className="primary-button px-6">Search</button></form>
     </section>
 
     <section className="mt-9">
