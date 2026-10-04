@@ -258,7 +258,7 @@ jobs:
 
       - name: Update scheduled case jobs
         run: |
-          for lane in recent historical; do
+          for lane in recent historical paranormal; do
             job="case-theory-stg-${lane}-draft"
             if gcloud run jobs describe "$job" --project="$PROJECT_ID" --region="$REGION" >/dev/null 2>&1; then
               gcloud run jobs update "$job" \

@@ -25,7 +25,7 @@ from app.db.seed import SCHEDULED_CASE_OWNER_EMAIL
 from app.users.models import User
 
 logger = structlog.get_logger()
-Lane = Literal["recent", "historical"]
+Lane = Literal["recent", "historical", "paranormal"]
 
 
 @dataclass(frozen=True)
@@ -112,7 +112,9 @@ def _candidate(proposal: DiscoveryProposal, searched: dict[str, str], lane: Lane
         age = (now.date() - proposal.published_date).days
         if age < 0 or age > 30:
             return None
-    elif proposal.year is None or proposal.year > now.year - 10 or proposal.year < 1800:
+    elif lane == "historical" and (proposal.year is None or proposal.year > now.year - 10 or proposal.year < 1800):
+        return None
+    elif lane == "paranormal" and (proposal.year is None or proposal.year > now.year or proposal.year < 1800):
         return None
 
     urls: list[str] = []
@@ -122,7 +124,7 @@ def _candidate(proposal: DiscoveryProposal, searched: dict[str, str], lane: Lane
         if canonical and canonical in searched and canonical not in urls:
             urls.append(canonical)
             domains.add(urlsplit(canonical).hostname or "")
-    if len(domains) < (2 if lane == "recent" else 1):
+    if len(domains) < (2 if lane in ("recent", "paranormal") else 1):
         return None
 
     identity = f"{title.casefold()}|{proposal.year or ''}"
@@ -156,6 +158,8 @@ def _candidate(proposal: DiscoveryProposal, searched: dict[str, str], lane: Lane
 
 
 def run_key(lane: Lane, now: datetime) -> str:
+    if lane == "paranormal":
+        return f"{lane}:{now.date().isoformat()}"
     slot = "am" if now.hour < 12 else "pm"
     return f"{lane}:{now.date().isoformat()}:{slot}"
 
@@ -171,12 +175,22 @@ async def discover_candidates(
             "at least two independent reporting or official source domains. Rank by public relevance, source "
             "quality, and recency."
         )
-    else:
+    elif lane == "historical":
         task = (
             "Find famous historical or cold criminal cases whose original incident was at least 10 years ago. "
             "Search online archives, court records, official histories, and established reporting. Explore "
             "different regions and decades. year is the original incident year, not the article date. "
             "Rank by public interest, historical importance, and quality of available sources."
+        )
+    else:
+        task = (
+            "Find specific, publicly documented paranormal or unexplained incidents, such as UFO/UAP reports, "
+            "alleged hauntings, or Men in Black accounts. These are examples of topics, not a fixed case list. "
+            "Search live archives, official records when available, and established reporting across different "
+            "places and periods. Give each candidate an identifiable incident year and at least two independent "
+            "source domains. Rank by public interest and source quality. Describe reported claims as claims; "
+            "do not present a supernatural explanation as established fact. Exclude fictional stories, generic "
+            "folklore without a documented incident, and cases based only on rumor sites."
         )
     response = await client.responses.parse(
         model=model,
@@ -372,7 +386,7 @@ async def run(lane: Lane, *, dry_run: bool = False) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate and publish one scheduled case")
-    parser.add_argument("lane", choices=("recent", "historical"))
+    parser.add_argument("lane", choices=("recent", "historical", "paranormal"))
     parser.add_argument("--dry-run", action="store_true", help="Select a candidate without creating a case")
     arguments = parser.parse_args()
     asyncio.run(run(arguments.lane, dry_run=arguments.dry_run))

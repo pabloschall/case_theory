@@ -2,9 +2,15 @@ locals {
   scheduled_case_lanes = var.enable_scheduled_cases ? {
     recent = {
       schedule = "0 1,13 * * *"
+      cadence  = "twice daily"
     }
     historical = {
       schedule = "0 2,14 * * *"
+      cadence  = "twice daily"
+    }
+    paranormal = {
+      schedule = "0 3 * * *"
+      cadence  = "daily"
     }
   } : {}
 
@@ -127,7 +133,7 @@ resource "google_cloud_scheduler_job" "scheduled_case" {
   project          = var.project_id
   region           = var.region
   name             = "${local.name_prefix}-${each.key}-draft"
-  description      = "Generate one public ${each.key} case twice daily"
+  description      = "Generate one public ${each.key} case ${each.value.cadence}"
   schedule         = each.value.schedule
   time_zone        = "Etc/UTC"
   attempt_deadline = "320s"

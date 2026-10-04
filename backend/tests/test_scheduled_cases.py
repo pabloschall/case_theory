@@ -54,7 +54,7 @@ def mock_client(proposals: list[DiscoveryProposal]) -> SimpleNamespace:
     return SimpleNamespace(responses=SimpleNamespace(parse=AsyncMock(return_value=response)))
 
 
-async def test_both_lanes_search_live_and_validate_sources() -> None:
+async def test_scheduled_lanes_search_live_and_validate_sources() -> None:
     recent_client = mock_client(
         [
             proposal(published_date=NOW.date() - timedelta(days=2)),
@@ -79,6 +79,15 @@ async def test_both_lanes_search_live_and_validate_sources() -> None:
     assert historical[0].source_name == "court.gov.example"
     assert "historical or cold" in historical_client.responses.parse.await_args.kwargs["instructions"]
 
+    paranormal_client = mock_client([proposal(published_date=None, year=1947)])
+    paranormal = await discover_candidates(paranormal_client, "gpt-5-mini", "paranormal", NOW, [])
+    assert len(paranormal) == 1
+    assert paranormal[0].source_payload["source_urls"] == [FIRST, SECOND]
+    paranormal_kwargs = paranormal_client.responses.parse.await_args.kwargs
+    assert paranormal_kwargs["tool_choice"] == "required"
+    assert "UFO/UAP" in paranormal_kwargs["instructions"]
+    assert "not a fixed case list" in paranormal_kwargs["instructions"]
+
 
 async def test_discovery_rejects_stale_news_and_nonhistorical_cases() -> None:
     old_news = mock_client([proposal(published_date=NOW.date() - timedelta(days=31))])
@@ -87,10 +96,16 @@ async def test_discovery_rejects_stale_news_and_nonhistorical_cases() -> None:
     assert await discover_candidates(single_source, "gpt-5-mini", "recent", NOW, []) == []
     too_new = mock_client([proposal(published_date=None, year=2020)])
     assert await discover_candidates(too_new, "gpt-5-mini", "historical", NOW, []) == []
+    paranormal_single_source = mock_client([proposal(published_date=None, year=1947, urls=[FIRST])])
+    assert await discover_candidates(paranormal_single_source, "gpt-5-mini", "paranormal", NOW, []) == []
+    paranormal_future = mock_client([proposal(published_date=None, year=2027)])
+    assert await discover_candidates(paranormal_future, "gpt-5-mini", "paranormal", NOW, []) == []
     assert run_key("recent", NOW) == "recent:2026-09-30:am"
     assert run_key("historical", NOW.replace(hour=11)) == "historical:2026-09-30:am"
     assert run_key("recent", NOW.replace(hour=12)) == "recent:2026-09-30:pm"
     assert run_key("historical", NOW.replace(hour=23)) == "historical:2026-09-30:pm"
+    assert run_key("paranormal", NOW) == "paranormal:2026-09-30"
+    assert run_key("paranormal", NOW.replace(hour=23)) == "paranormal:2026-09-30"
 
 
 async def test_discovery_handles_null_web_sources_and_uses_cited_urls() -> None:
