@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Clock3, FileSearch, MessageSquare, Plus, Search, Sparkles } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock3, Eye, FileSearch, MessageSquare, Plus, Search, Sparkles } from 'lucide-react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
@@ -8,7 +8,7 @@ import { EmptyState, SectionHeader } from '../../components/ui/Visual'
 import { CaseCard } from '../cases/CaseCard'
 import { Seo } from '../../components/Seo'
 
-type CaseSort = 'newest' | 'popular'
+type CaseSort = 'newest' | 'popular' | 'views'
 
 export function HomePage() {
   const [input, setInput] = useState('')
@@ -40,6 +40,7 @@ export function HomePage() {
         <div className="inline-flex w-full rounded-lg border border-default bg-background/50 p-1 sm:w-auto" aria-label="Sort cases">
           <button type="button" onClick={() => changeSort('newest')} className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md px-4 text-xs font-semibold transition sm:flex-none ${sort === 'newest' ? 'bg-accent-muted text-accent' : 'text-muted hover:text-primary'}`}><Clock3 size={15}/>Recently created</button>
           <button type="button" onClick={() => changeSort('popular')} className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md px-4 text-xs font-semibold transition sm:flex-none ${sort === 'popular' ? 'bg-accent-muted text-accent' : 'text-muted hover:text-primary'}`}><MessageSquare size={15}/>Most discussed</button>
+          <button type="button" onClick={() => changeSort('views')} className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md px-4 text-xs font-semibold transition sm:flex-none ${sort === 'views' ? 'bg-accent-muted text-accent' : 'text-muted hover:text-primary'}`}><Eye size={15}/>Most viewed</button>
         </div>
       </div>
       {results.length ? <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{results.map((item) => <CaseCard key={item.id} item={item} showFollow={Boolean(currentUser)}/>)}</div> : isFetching ? <div role="status" className="card mt-5 grid min-h-56 place-items-center p-8 text-center"><div><Sparkles className="mx-auto animate-pulse text-accent"/><p className="mt-4 text-sm text-muted">Loading public cases…</p></div></div> : isError ? <p role="alert" className="error-banner mt-5">Public cases could not be loaded. Please try again.</p> : <div className="mt-5"><EmptyState icon={FileSearch} title="No public cases found">Try a different name, year, or location.</EmptyState></div>}

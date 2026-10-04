@@ -112,6 +112,7 @@ export type CaseListItem = {
   is_following: boolean
   ai_research_status: string
   cover_image_url: string | null
+  view_count: number
   discussion_count: number
   created_at: string
   updated_at: string

@@ -1,6 +1,6 @@
-import {ArrowLeft, Bookmark, BookmarkCheck, Globe2, LockKeyhole, RefreshCw, Sparkles} from 'lucide-react'
+import {ArrowLeft, Bookmark, BookmarkCheck, Eye, Globe2, LockKeyhole, RefreshCw, Sparkles} from 'lucide-react'
 import {useMutation, useQuery} from '@tanstack/react-query'
-import {useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {Link, useParams} from 'react-router'
 import {api} from '../../services/api'
 import type {CaseDetail} from '../../types'
@@ -25,6 +25,7 @@ const generationStatuses = ['queued', 'researching_sources', 'generating_overvie
 export function CasePage() {
     const {caseId = ''} = useParams()
     const [tab, setTab] = useState<Tab>('Overview')
+    const viewedCaseId = useRef<string | null>(null)
     const query = useQuery({
         queryKey: ['case', caseId],
         queryFn: () => api.case(caseId),
@@ -60,7 +61,17 @@ export function CasePage() {
         },
     })
     const item = query.data
+    const loadedCaseId = item?.id
     const generating = Boolean(item && generationStatuses.includes(item.ai_research_status))
+
+    useEffect(() => {
+        if (!loadedCaseId || viewedCaseId.current === loadedCaseId) return
+        viewedCaseId.current = loadedCaseId
+        void api.recordCaseView(loadedCaseId).then(({view_count}) => {
+            queryClient.setQueryData<CaseDetail>(['case', loadedCaseId], (current) => current ? {...current, view_count} : current)
+            void queryClient.invalidateQueries({queryKey: ['cases']})
+        }).catch(() => {})
+    }, [loadedCaseId])
 
     if (query.isLoading) return <div className="grid min-h-[60vh] place-items-center"><Sparkles
         className="animate-pulse text-accent"/></div>
@@ -95,7 +106,7 @@ export function CasePage() {
                 <h1 className="case-title mt-4 max-w-3xl">{item.title}</h1><p
                 className="mt-2 text-xs text-secondary">Owned by <span
                 className="font-semibold text-primary">{item.is_owner ? 'you' : item.owner.display_name}</span>
-            </p>{generating &&
+            </p><p className="mt-2 inline-flex items-center gap-1.5 text-xs text-secondary"><Eye size={13}/>{item.view_count} {item.view_count === 1 ? 'view' : 'views'}</p>{generating &&
                 <ResearchProgress status={item.ai_research_status}/>} {item.ai_research_status === 'failed' &&
                 <p className="error-banner mt-4">Generation stopped: {item.ai_error_message}</p>}
                 <div

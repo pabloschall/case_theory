@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
-import { ArrowRight, Bookmark, BookmarkCheck, CalendarDays, LockKeyhole, MessageSquare } from 'lucide-react'
+import { ArrowRight, Bookmark, BookmarkCheck, CalendarDays, Eye, LockKeyhole, MessageSquare } from 'lucide-react'
 import { Link } from 'react-router'
 import { queryClient } from '../../lib/query'
 import { api } from '../../services/api'
@@ -34,6 +34,7 @@ export function CaseCard({ item, showFollow = true }: { item: CaseListItem; show
     </Link>
     <div className="mx-5 flex flex-wrap items-center justify-between gap-3 border-t border-subtle py-3 text-[11px] text-muted">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span className="inline-flex items-center gap-1.5"><Eye size={13}/>{item.view_count} {item.view_count === 1 ? 'view' : 'views'}</span>
         <span className="inline-flex items-center gap-1.5"><MessageSquare size={13}/>{item.discussion_count} {item.discussion_count === 1 ? 'discussion post' : 'discussion posts'}</span>
         <span className="inline-flex items-center gap-1.5"><CalendarDays size={13}/>Created {dateFormatter.format(new Date(item.created_at))}</span>
       </div>

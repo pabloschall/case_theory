@@ -79,6 +79,7 @@ def to_case_read(
         ai_research_status=case.ai_research_status,
         ai_error_message=case.ai_error_message,
         cover_image_url=case.cover_image_url,
+        view_count=case.view_count,
         summary=SummaryRead.model_validate(summary) if summary else None,
         timeline=[
             TimelineEventRead(
@@ -136,6 +137,7 @@ def to_list_item(
         is_following=is_following,
         ai_research_status=case.ai_research_status,
         cover_image_url=case.cover_image_url,
+        view_count=case.view_count,
         discussion_count=discussion_count,
         created_at=case.created_at,
         updated_at=case.updated_at,
@@ -278,7 +280,9 @@ class CaseService:
                 if normalized_query.isdigit()
                 else text_match
             )
-        if sort == "popular":
+        if sort == "views":
+            statement = statement.order_by(Case.view_count.desc(), Case.created_at.desc())
+        elif sort == "popular":
             thread_count = (
                 select(func.count(DiscussionThread.id))
                 .where(DiscussionThread.case_id == Case.id)

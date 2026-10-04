@@ -3,14 +3,14 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 from openai import OpenAIError
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import RedirectResponse
 
 from app.ai.chat_research import ChatResearchRequest, ChatResearchResponse, OpenAIChatResearcher
 from app.auth.dependencies import get_current_user, get_optional_current_user, verify_csrf
 from app.cases.dependencies import require_case_access, require_public_case_access
-from app.cases.models import CaseSummary
+from app.cases.models import Case, CaseSummary
 from app.cases.schemas import (
     CaseCreate,
     CaseListItem,
@@ -39,7 +39,7 @@ router = APIRouter(prefix="/cases", tags=["cases"])
 @router.get("", response_model=CaseListPage)
 async def search_cases(
     q: str | None = Query(default=None, max_length=200),
-    sort: Literal["newest", "popular"] = Query(default="newest"),
+    sort: Literal["newest", "popular", "views"] = Query(default="newest"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=12, ge=1, le=50),
     user: User | None = Depends(get_optional_current_user),
@@ -144,6 +144,23 @@ async def get_case(
         is_following=is_following,
         include_evidence_details=include_evidence,
     )
+
+
+@router.post("/{case_id}/view", dependencies=[Depends(verify_csrf), Depends(require_public_case_access)])
+async def record_case_view(
+    case_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, int]:
+    count = await db.scalar(
+        update(Case)
+        .where(Case.id == case_id)
+        .values(view_count=Case.view_count + 1, updated_at=Case.updated_at)
+        .returning(Case.view_count)
+    )
+    if count is None:
+        raise AppError(404, "case_not_found", "Case was not found")
+    await db.commit()
+    return {"view_count": count}
 
 
 @router.get(

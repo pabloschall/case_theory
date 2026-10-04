@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime, time
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, Text, Time, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, Boolean, Date, DateTime, ForeignKey, Integer, String, Text, Time, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -34,6 +34,7 @@ class Case(Base):
     cover_image_url: Mapped[str | None] = mapped_column(String(2048))
     cover_image_object_key: Mapped[str | None] = mapped_column(String(1024))
     cover_image_prompt: Mapped[str | None] = mapped_column(Text)
+    view_count: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0")
     counts_toward_weekly_limit: Mapped[bool] = mapped_column(Boolean, default=True)
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

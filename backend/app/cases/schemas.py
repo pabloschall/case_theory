@@ -158,6 +158,7 @@ class CaseRead(BaseModel):
     ai_research_status: str
     ai_error_message: str | None
     cover_image_url: str | None
+    view_count: int
     summary: SummaryRead | None
     timeline: list[TimelineEventRead]
     sources: list[SourceRead]
@@ -177,6 +178,7 @@ class CaseListItem(BaseModel):
     is_following: bool
     ai_research_status: str
     cover_image_url: str | None
+    view_count: int
     discussion_count: int
     created_at: datetime
     updated_at: datetime

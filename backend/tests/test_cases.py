@@ -109,6 +109,18 @@ async def test_create_search_and_open_case(client: AsyncClient, monkeypatch: Mon
     )
     assert commented.status_code == 201
 
+    assert (await client.get(f"/api/v1/cases/{case['id']}")).json()["view_count"] == 0
+    first_view = await client.post(f"/api/v1/cases/{case['id']}/view", headers={"X-CSRF-Token": token})
+    assert first_view.status_code == 200
+    assert first_view.json() == {"view_count": 1}
+    second_view = await client.post(f"/api/v1/cases/{case['id']}/view", headers={"X-CSRF-Token": token})
+    assert second_view.json() == {"view_count": 2}
+    assert (await client.get(f"/api/v1/cases/{case['id']}")).json()["view_count"] == 2
+    most_viewed = await client.get("/api/v1/cases?sort=views")
+    assert most_viewed.status_code == 200
+    assert most_viewed.json()["items"][0]["id"] == case["id"]
+    assert most_viewed.json()["items"][0]["view_count"] == 2
+
     popular = await client.get("/api/v1/cases?sort=popular")
     assert popular.status_code == 200
     assert popular.json()["items"][0]["id"] == active_case["id"]
@@ -604,6 +616,10 @@ async def test_private_case_requires_verified_account_and_is_owner_only(
 
     hidden = await client.get(f"/api/v1/cases/{private_case['id']}")
     assert hidden.status_code == 404
+    hidden_view = await client.post(
+        f"/api/v1/cases/{private_case['id']}/view", headers={"X-CSRF-Token": token}
+    )
+    assert hidden_view.status_code == 404
     hidden_evidence = await client.get(f"/api/v1/cases/{private_case['id']}/evidence")
     assert hidden_evidence.status_code == 404
     privacy_change = await client.patch(

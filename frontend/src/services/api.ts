@@ -55,7 +55,7 @@ export const api = {
   forgotPassword: (email: string) => request<{ message: string }>('/auth/password/forgot', { method: 'POST', body: JSON.stringify({ email }) }),
   resetPassword: (data: { token: string; password: string }) => request<{ message: string }>('/auth/password/reset', { method: 'POST', body: JSON.stringify(data) }),
   logout: () => request<{ message: string }>('/auth/logout', { method: 'POST' }),
-  searchCases: (query = '', sort: 'newest' | 'popular' = 'newest', page = 1, pageSize = 12) => {
+  searchCases: (query = '', sort: 'newest' | 'popular' | 'views' = 'newest', page = 1, pageSize = 12) => {
     const params = new URLSearchParams({ sort, page: String(page), page_size: String(pageSize) })
     if (query) params.set('q', query)
     return request<CaseListPage>(`/cases?${params.toString()}`)
@@ -66,6 +66,7 @@ export const api = {
   unfollowCase: (id: string) => request<{ is_following: boolean }>(`/cases/${id}/follow`, { method: 'DELETE' }),
   createCase: (data: { victim_names: string; year?: number; location?: string; additional_context?: string; creation_mode: 'ai' | 'manual'; summary?: string; banner_template?: string; privacy: 'public' | 'private' }) => request<CaseDetail>('/cases', { method: 'POST', body: JSON.stringify(data) }),
   case: (id: string) => request<CaseDetail>(`/cases/${id}`),
+  recordCaseView: (id: string) => request<{ view_count: number }>(`/cases/${id}/view`, { method: 'POST' }),
   researchCase: (id: string) => request<{ job_id: string; status: string }>(`/cases/${id}/research`, { method: 'POST' }),
   researchChat: (id: string, data: { message: string; history: { role: 'user' | 'assistant'; content: string; sources?: { title: string; url: string }[] }[] }) => request<ResearchChatResponse>(`/cases/${id}/research-chat`, { method: 'POST', body: JSON.stringify(data) }),
   executeResearchAction: (caseId: string, action: ResearchAction) => {
