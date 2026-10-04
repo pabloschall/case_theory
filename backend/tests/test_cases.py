@@ -143,7 +143,7 @@ async def test_create_search_and_open_case(client: AsyncClient, monkeypatch: Mon
         public_section = await client.get(f"/api/v1/cases/{active_case['id']}/{section}")
         assert public_section.status_code == 200
 
-    invalid_sort = await client.get("/api/v1/cases?sort=views")
+    invalid_sort = await client.get("/api/v1/cases?sort=unknown")
     assert invalid_sort.status_code == 422
 
     opened = await client.get(f"/api/v1/cases/{case['id']}")
