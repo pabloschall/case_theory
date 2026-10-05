@@ -7,6 +7,7 @@ import pytest
 from app.config.settings import Settings
 from app.scheduled_reels import (
     YouTubeUploader,
+    build_scene_metadata,
     build_srt,
     build_youtube_description,
     case_hashtags,
@@ -21,10 +22,27 @@ def test_reel_slot_changes_at_noon_utc() -> None:
 
 
 def test_build_srt_covers_the_complete_narration() -> None:
-    subtitles = build_srt(["Opening fact", "Documented timeline", "Review the full case"], 45)
-    assert "00:00:00,000 --> 00:00:15,000" in subtitles
+    subtitles = build_srt(
+        ["Opening fact", "Documented timeline", "Review the full case"],
+        [8.5, 21.5, 15],
+    )
+    assert "00:00:00,000 --> 00:00:08,500" in subtitles
     assert "00:00:30,000 --> 00:00:45,000" in subtitles
     assert "Review the full case" in subtitles
+
+
+def test_scene_metadata_preserves_prompts_and_narration_timing() -> None:
+    scenes = build_scene_metadata(
+        ["The location", "The timeline"],
+        ["A specific desert road at dusk", "A period calendar beside a case file"],
+        ["The case began near a desert road.", "Investigators documented the timeline."],
+        [8.5, 12.25],
+    )
+
+    assert scenes[0]["visual_direction"] == "A specific desert road at dusk"
+    assert scenes[1]["narration_text"] == "Investigators documented the timeline."
+    assert scenes[1]["start_second"] == 8
+    assert scenes[1]["end_second"] == 21
 
 
 def test_music_tracks_alternate_between_schedule_slots() -> None:

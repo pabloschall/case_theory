@@ -36,6 +36,7 @@ HASHTAG_STOP_WORDS = {"a", "an", "and", "case", "criminal", "killing", "of", "su
 
 
 class GeneratedReelScene(BaseModel):
+    narration_text: str = Field(min_length=20, max_length=500)
     on_screen_text: str = Field(min_length=2, max_length=90)
     image_prompt: str = Field(min_length=20, max_length=1000)
 
@@ -59,9 +60,7 @@ class GeneratedReelScript(BaseModel):
 def _hashtag_for_phrase(value: str, *, max_words: int) -> str | None:
     without_parentheticals = re.sub(r"\([^)]*\)", "", value)
     words = [
-        word
-        for word in re.findall(r"[A-Za-z0-9]+", without_parentheticals)
-        if word.lower() not in HASHTAG_STOP_WORDS
+        word for word in re.findall(r"[A-Za-z0-9]+", without_parentheticals) if word.lower() not in HASHTAG_STOP_WORDS
     ][:max_words]
     if not words:
         return None
@@ -116,14 +115,50 @@ def _srt_time(seconds: float) -> str:
     return f"{hours:02}:{minutes:02}:{whole_seconds:02},{milliseconds:03}"
 
 
-def build_srt(scene_texts: list[str], narration_seconds: float) -> str:
-    segment = narration_seconds / len(scene_texts)
+def build_srt(scene_texts: list[str], scene_durations: list[float]) -> str:
+    if len(scene_texts) != len(scene_durations):
+        raise ValueError("Each subtitle must have a matching scene duration")
     blocks = []
+    start = 0.0
     for index, text in enumerate(scene_texts, start=1):
-        start = (index - 1) * segment
-        end = index * segment
+        end = start + scene_durations[index - 1]
         blocks.append(f"{index}\n{_srt_time(start)} --> {_srt_time(end)}\n{text.strip()}\n")
+        start = end
     return "\n".join(blocks)
+
+
+def split_narration(narration: str, scene_count: int) -> list[str]:
+    """Partition legacy narration without losing or reordering words."""
+    words = narration.split()
+    return [
+        " ".join(words[len(words) * index // scene_count : len(words) * (index + 1) // scene_count])
+        for index in range(scene_count)
+    ]
+
+
+def build_scene_metadata(
+    scene_texts: list[str],
+    scene_prompts: list[str],
+    scene_narrations: list[str],
+    scene_durations: list[float],
+) -> list[dict[str, object]]:
+    scenes = []
+    scene_start = 0.0
+    for text, prompt, narration_text, duration in zip(
+        scene_texts, scene_prompts, scene_narrations, scene_durations, strict=True
+    ):
+        scene_end = scene_start + duration
+        scenes.append(
+            {
+                "start_second": round(scene_start),
+                "end_second": round(scene_end),
+                "on_screen_text": text,
+                "visual_direction": prompt,
+                "narration_text": narration_text,
+            }
+        )
+        scene_start = scene_end
+    return scenes
 
 
 async def _run_process(*command: str) -> bytes:
@@ -159,31 +194,54 @@ async def audio_duration(path: Path) -> float:
 async def render_vertical_video(
     directory: Path,
     images: list[bytes],
-    audio: bytes,
+    audio_segments: list[bytes],
     scene_texts: list[str],
+    scene_prompts: list[str],
+    scene_narrations: list[str],
     site_label: str,
     music_path: Path,
     music_volume: float,
 ) -> tuple[bytes, int, list[dict[str, object]]]:
+    scene_count = len(images)
+    if not (scene_count == len(audio_segments) == len(scene_texts) == len(scene_prompts) == len(scene_narrations)):
+        raise ValueError("Every reel scene must have an image, narration, caption, and prompt")
     if not await asyncio.to_thread(music_path.is_file):
         raise RuntimeError(f"Reel music track is missing: {music_path.name}")
     audio_path = directory / "narration.mp3"
-    audio_path.write_bytes(audio)
+    audio_paths = []
+    for index, content in enumerate(audio_segments):
+        path = directory / f"narration-{index}.mp3"
+        path.write_bytes(content)
+        audio_paths.append(path)
+    concat_inputs = [part for path in audio_paths for part in ("-i", str(path))]
+    concat_filter = "".join(f"[{index}:a]" for index in range(len(audio_paths)))
+    await _run_process(
+        "ffmpeg",
+        "-y",
+        *concat_inputs,
+        "-filter_complex",
+        f"{concat_filter}concat=n={len(audio_paths)}:v=0:a=1[outa]",
+        "-map",
+        "[outa]",
+        str(audio_path),
+    )
     image_paths = []
     for index, content in enumerate(images):
         path = directory / f"scene-{index}.webp"
         path.write_bytes(content)
         image_paths.append(path)
-    narration_seconds = await audio_duration(audio_path)
-    segment_seconds = narration_seconds / len(image_paths)
+    scene_durations = [await audio_duration(path) for path in audio_paths]
+    narration_seconds = sum(scene_durations)
+    if narration_seconds > 56:
+        raise RuntimeError("Generated narration has an invalid duration")
     total_seconds = narration_seconds + 4
     srt_path = directory / "captions.srt"
-    srt_path.write_text(build_srt(scene_texts, narration_seconds), encoding="utf-8")
+    srt_path.write_text(build_srt(scene_texts, scene_durations), encoding="utf-8")
     output_path = directory / "reel.mp4"
 
     inputs: list[str] = []
-    for path in image_paths:
-        inputs.extend(["-loop", "1", "-t", f"{segment_seconds:.3f}", "-i", str(path)])
+    for path, duration in zip(image_paths, scene_durations, strict=True):
+        inputs.extend(["-loop", "1", "-t", f"{duration:.3f}", "-i", str(path)])
     inputs.extend(
         [
             "-f",
@@ -205,8 +263,7 @@ async def render_vertical_video(
     for index in range(len(image_paths)):
         label = f"v{index}"
         filters.append(
-            f"[{index}:v]scale=1080:1920:force_original_aspect_ratio=increase,"
-            f"crop=1080:1920,setsar=1,fps=30[{label}]"
+            f"[{index}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=30[{label}]"
         )
         video_labels.append(f"[{label}]")
     end_index = len(image_paths)
@@ -217,10 +274,7 @@ async def render_vertical_video(
         "fontcolor=0xd5a64a:fontsize=34:x=(w-text_w)/2:y=(h-text_h)/2-90[vend]"
     )
     video_labels.append("[vend]")
-    filters.append(
-        "".join(video_labels)
-        + f"concat=n={len(video_labels)}:v=1:a=0[sequence]"
-    )
+    filters.append("".join(video_labels) + f"concat=n={len(video_labels)}:v=1:a=0[sequence]")
     escaped_srt = str(srt_path).replace("'", "\\'")
     filters.append(
         f"[sequence]subtitles='{escaped_srt}':force_style='FontName=DejaVu Sans,FontSize=18,"
@@ -268,15 +322,7 @@ async def render_vertical_video(
         "+faststart",
         str(output_path),
     )
-    scenes = [
-        {
-            "start_second": round((index - 1) * segment_seconds),
-            "end_second": round(index * segment_seconds),
-            "on_screen_text": text,
-            "visual_direction": "AI-generated symbolic editorial background",
-        }
-        for index, text in enumerate(scene_texts, start=1)
-    ]
+    scenes = build_scene_metadata(scene_texts, scene_prompts, scene_narrations, scene_durations)
     scenes[-1]["end_second"] = round(narration_seconds)
     return output_path.read_bytes(), round(total_seconds), scenes
 
@@ -360,9 +406,7 @@ class YouTubeUploader:
 
 
 async def select_case(db: AsyncSession) -> tuple[Case, CaseSummary, list[Source]] | None:
-    already_used = exists(
-        select(ReelDraft.id).where(ReelDraft.case_id == Case.id, ReelDraft.automated.is_(True))
-    )
+    already_used = exists(select(ReelDraft.id).where(ReelDraft.case_id == Case.id, ReelDraft.automated.is_(True)))
     has_sources = exists(select(Source.id).where(Source.case_id == Case.id))
     row = (
         await db.execute(
@@ -406,9 +450,12 @@ async def generate_script(
             "spoken words in a calm documentary voice. Start with a factual hook, distinguish confirmed facts "
             "from allegations, avoid graphic or sensational wording, and invite viewers to examine the full case. "
             "Do not add facts, names, dates, or accusations beyond the overview and source catalog. Create exactly "
-            f"{settings.reel_image_count} symbolic editorial background scenes. Image prompts must be portrait, "
-            "cinematic, non-graphic, contain no readable text or logos, and must not recreate real people or imply "
-            "that an AI-generated person is a real participant. The caption must disclose AI-generated narration."
+            f"{settings.reel_image_count} consecutive scenes. Put the exact spoken words for each scene in "
+            "narration_text, and make the top-level narration those scene narrations joined in order. Every image "
+            "prompt must visibly illustrate the specific fact, place, time period, or object discussed in that "
+            "scene's narration_text; avoid generic crime imagery. Prompts must be portrait, cinematic, non-graphic, "
+            "contain no readable text or logos, and must not recreate real people or imply that an AI-generated "
+            "person is a real participant. The caption must disclose AI-generated narration."
         ),
         input=f"CASE\n{case.title}\n\nOVERVIEW\n{summary.body}\n\nSOURCES\n{catalog}",
         text_format=GeneratedReelScript,
@@ -416,6 +463,8 @@ async def generate_script(
     script = response.output_parsed
     if script is None or len(script.scenes) != settings.reel_image_count:
         raise RuntimeError("OpenAI returned an invalid reel script")
+    script.narration = " ".join(scene.narration_text.strip() for scene in script.scenes)
+    GeneratedReelScript.narration_fits_a_short(script.narration)
     return script
 
 
@@ -446,6 +495,7 @@ async def run(*, dry_run: bool = False, skip_upload: bool = False) -> None:
                         )
                     ).all()
                 )
+                legacy_narration = split_narration(existing.narration, len(existing.scenes))
                 script = GeneratedReelScript(
                     title=existing.title,
                     hook=existing.hook,
@@ -453,10 +503,11 @@ async def run(*, dry_run: bool = False, skip_upload: bool = False) -> None:
                     caption=existing.caption,
                     scenes=[
                         GeneratedReelScene(
+                            narration_text=str(scene.get("narration_text") or legacy_narration[index]),
                             on_screen_text=str(scene["on_screen_text"]),
                             image_prompt=str(scene["visual_direction"]),
                         )
-                        for scene in existing.scenes
+                        for index, scene in enumerate(existing.scenes)
                     ],
                 )
                 item = existing
@@ -491,6 +542,7 @@ async def run(*, dry_run: bool = False, skip_upload: bool = False) -> None:
                         {
                             "start_second": index * scene_span,
                             "end_second": (index + 1) * scene_span if index < len(script.scenes) - 1 else 45,
+                            "narration_text": scene.narration_text,
                             "on_screen_text": scene.on_screen_text,
                             "visual_direction": scene.image_prompt,
                         }
@@ -523,21 +575,28 @@ async def run(*, dry_run: bool = False, skip_upload: bool = False) -> None:
                     if not encoded:
                         raise RuntimeError("OpenAI returned no reel background image")
                     images.append(base64.b64decode(encoded))
-                speech = await client.audio.speech.create(
-                    model=settings.ai_speech_model,
-                    voice=settings.ai_speech_voice,
-                    input=script.narration,
-                    instructions="Calm, clear documentary narration. Respectful, measured, and never sensational.",
-                    response_format="mp3",
-                )
+                speech_segments = []
+                for scene in script.scenes:
+                    speech = await client.audio.speech.create(
+                        model=settings.ai_speech_model,
+                        voice=settings.ai_speech_voice,
+                        input=scene.narration_text,
+                        instructions=(
+                            "Calm, clear documentary narration. Respectful, measured, and never sensational."
+                        ),
+                        response_format="mp3",
+                    )
+                    speech_segments.append(speech.content)
                 item.status = "rendering"
                 await db.commit()
                 with tempfile.TemporaryDirectory(prefix="case-theory-reel-") as temp_name:
                     video, duration, scenes = await render_vertical_video(
                         Path(temp_name),
                         images,
-                        speech.content,
+                        speech_segments,
                         [scene.on_screen_text for scene in script.scenes],
+                        [scene.image_prompt for scene in script.scenes],
+                        [scene.narration_text for scene in script.scenes],
                         settings.reel_site_label,
                         music_track_for_slot(slot),
                         settings.reel_music_volume,
