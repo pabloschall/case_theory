@@ -17,8 +17,9 @@ import {MyNotesPanel} from '../notes/MyNotesPanel'
 import {MyTimelinePanel} from '../timeline/MyTimelinePanel'
 import {ResearcherChat} from './ResearcherChat'
 import {Seo} from '../../components/Seo'
+import {ReelsPanel} from '../reels/ReelsPanel'
 
-const tabs = ['Overview', 'Researcher', 'Discussion', 'Timeline', 'Evidence', 'Map', 'People', 'My Notes', 'My Timeline'] as const
+const tabs = ['Overview', 'Researcher', 'Reels', 'Discussion', 'Timeline', 'Evidence', 'Map', 'People', 'My Notes', 'My Timeline'] as const
 type Tab = typeof tabs[number]
 const generationStatuses = ['queued', 'researching_sources', 'generating_overview', 'generating_banner', 'queued_source_enrichment', 'enriching_official_source']
 
@@ -141,7 +142,7 @@ export function CasePage() {
         <nav className="mt-4 flex max-w-full gap-1 overflow-x-auto border-b border-subtle">{tabs.map((value) => <button
             key={value} onClick={() => setTab(value)}
             className={`relative min-h-12 shrink-0 rounded-t-lg border-b-2 px-4 text-xs font-semibold transition duration-200 ${tab === value ? 'border-accent bg-accent-muted text-accent shadow-[inset_0_-5px_14px_rgba(213,166,74,.05)]' : 'border-transparent text-muted hover:bg-white/[.025] hover:text-primary'}`}>{value}</button>)}</nav>
-        <div className="mt-6">{tab === 'Overview' && <Overview item={item}/>}<div hidden={tab !== 'Researcher'}>{canUseResearcher ? <ResearcherChat key={item.id} caseId={item.id} title={item.title}/> : <UpgradePanel title="Researcher is locked" description="Online research is available with a paid plan."/>}</div> {tab === 'Discussion' &&
+        <div className="mt-6">{tab === 'Overview' && <Overview item={item}/>}<div hidden={tab !== 'Researcher'}>{canUseResearcher ? <ResearcherChat key={item.id} caseId={item.id} title={item.title}/> : <UpgradePanel title="Researcher is locked" description="Online research is available with a paid plan."/>}</div> {tab === 'Reels' && (canUseResearcher ? <ReelsPanel caseId={item.id}/> : <UpgradePanel title="Reel drafts are locked" description="Sourced reel creation is available with a paid plan."/>)} {tab === 'Discussion' &&
             <DiscussionPanel caseId={item.id} readOnly={!canWriteDiscussion}/>} {tab === 'Timeline' &&
             <TimelinePanel item={item} readOnly={!canWriteTimeline} canReorder={item.is_owner || isAdmin}/>} {tab === 'Evidence' &&
             <EvidencePanel caseId={item.id} readOnly={!canUploadEvidence} canComment={canWriteDiscussion}/>} {tab === 'Map' && <MapPanel caseId={item.id} readOnly={!canWriteMap}/>} {tab === 'People' &&

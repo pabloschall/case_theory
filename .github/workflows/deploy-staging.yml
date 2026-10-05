@@ -269,6 +269,15 @@ jobs:
             fi
           done
 
+          reel_job="case-theory-stg-youtube-short"
+          if gcloud run jobs describe "$reel_job" --project="$PROJECT_ID" --region="$REGION" >/dev/null 2>&1; then
+            gcloud run jobs update "$reel_job" \
+              --project="$PROJECT_ID" \
+              --region="$REGION" \
+              --image="$BACKEND_IMAGE" \
+              --quiet
+          fi
+
       - name: Record deployed images
         run: |
           echo "### Staging deployment" >> "$GITHUB_STEP_SUMMARY"

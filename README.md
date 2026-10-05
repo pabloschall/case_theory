@@ -76,6 +76,10 @@ The Evidence tab accepts supported files up to 25 MB and public YouTube or websi
 
 AI-generated case banners also use the configured storage provider. They are stored privately under `cases/{case_id}/covers/{generation_id}.webp`; the database keeps the object key and a stable case-cover endpoint redirects authorized viewers to a short-lived storage URL. Local development uses the GCS emulator, while production uses the same flow with Google Cloud Storage. Manual template banners remain frontend assets.
 
+## Automated YouTube Shorts
+
+Paid investigators can ask the case Researcher to create a 15–60 second reel draft for review. A separate production job runs twice daily, selects an eligible sourced public case, generates a neutral script, AI narration, and symbolic portrait backgrounds, renders a vertical MP4 ending with `case-researcher.com`, stores it, and uploads it through YouTube's resumable API. See [docs/scheduled-reels.md](docs/scheduled-reels.md) for credentials, local commands, scheduling, and activation.
+
 ## FBI case discovery and import
 
 Paid investigators and admins can open **Create Case → Browse Sources → FBI** to search public FBI Wanted records. Eillen calls the FBI from the backend, caches lists for 15 minutes and individual records for one hour, and creates every import as a private draft. The official payload remains in `case_sources`, separate from AI suggestions and community edits. Imported images are validated and copied into the configured private storage provider.

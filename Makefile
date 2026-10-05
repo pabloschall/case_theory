@@ -1,6 +1,6 @@
 TERRAFORM ?= ./scripts/terraform
 
-.PHONY: dev test test-backend test-frontend migrate migration seed lint format typecheck terraform-fmt terraform-validate preview-recent-case preview-historical-case preview-paranormal-case create-recent-case create-historical-case create-paranormal-case
+.PHONY: dev test test-backend test-frontend migrate migration seed lint format typecheck terraform-fmt terraform-validate preview-recent-case preview-historical-case preview-paranormal-case create-recent-case create-historical-case create-paranormal-case preview-reel render-reel publish-reel
 
 dev:
 	docker compose up --build
@@ -39,6 +39,15 @@ create-historical-case:
 
 create-paranormal-case:
 	docker compose run --rm backend python -m app.scheduled_cases paranormal
+
+preview-reel:
+	docker compose run --rm backend python -m app.scheduled_reels --dry-run
+
+render-reel:
+	docker compose run --rm backend python -m app.scheduled_reels --skip-upload
+
+publish-reel:
+	docker compose run --rm backend python -m app.scheduled_reels
 
 lint:
 	cd backend && ruff check .

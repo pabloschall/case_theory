@@ -94,13 +94,17 @@ module "secrets" {
   project_id = var.project_id
   labels     = local.labels
   secret_accessors = {
-    "secret-key"         = [module.identities.service_account_emails.api, module.identities.service_account_emails.worker, module.identities.service_account_emails.migration]
-    "database-url"       = [module.identities.service_account_emails.api, module.identities.service_account_emails.worker, module.identities.service_account_emails.migration]
-    "openai-api-key"     = [module.identities.service_account_emails.api, module.identities.service_account_emails.worker]
-    "mailgun-api-key"    = [module.identities.service_account_emails.api, module.identities.service_account_emails.worker, module.identities.service_account_emails.migration]
-    "mailgun-base-url"   = [module.identities.service_account_emails.api, module.identities.service_account_emails.worker, module.identities.service_account_emails.migration]
-    "mailgun-from-email" = [module.identities.service_account_emails.api, module.identities.service_account_emails.worker, module.identities.service_account_emails.migration]
-    "fbi-api-key"        = [module.identities.service_account_emails.api, module.identities.service_account_emails.worker]
+    "secret-key"            = [module.identities.service_account_emails.api, module.identities.service_account_emails.worker, module.identities.service_account_emails.migration]
+    "database-url"          = [module.identities.service_account_emails.api, module.identities.service_account_emails.worker, module.identities.service_account_emails.migration]
+    "openai-api-key"        = [module.identities.service_account_emails.api, module.identities.service_account_emails.worker]
+    "mailgun-api-key"       = [module.identities.service_account_emails.api, module.identities.service_account_emails.worker, module.identities.service_account_emails.migration]
+    "mailgun-base-url"      = [module.identities.service_account_emails.api, module.identities.service_account_emails.worker, module.identities.service_account_emails.migration]
+    "mailgun-from-email"    = [module.identities.service_account_emails.api, module.identities.service_account_emails.worker, module.identities.service_account_emails.migration]
+    "fbi-api-key"           = [module.identities.service_account_emails.api, module.identities.service_account_emails.worker]
+    "youtube-client-id"     = [module.identities.service_account_emails.worker]
+    "youtube-client-secret" = [module.identities.service_account_emails.worker]
+    "youtube-refresh-token" = [module.identities.service_account_emails.worker]
+    "youtube-channel-id"    = [module.identities.service_account_emails.worker]
   }
 
   depends_on = [module.project_services]

@@ -12,6 +12,7 @@ from app.cases.schemas import TimelineEventCreate
 from app.config.settings import Settings
 from app.discussions.schemas import ThreadCreate, ThreadType
 from app.evidence.schemas import EvidenceType, ExternalEvidenceCreate
+from app.reels.schemas import ReelDraftCreate, ReelScene, ReelSource
 
 
 class ChatTurn(BaseModel):
@@ -61,7 +62,25 @@ class EvidenceActionDraft(BaseModel):
         return str(TypeAdapter(HttpUrl).validate_python(value))
 
 
-ActionDraft = TimelineActionDraft | ThreadActionDraft | EvidenceActionDraft
+class ReelSceneDraft(BaseModel):
+    start_second: int = Field(ge=0, le=60)
+    end_second: int = Field(gt=0, le=60)
+    on_screen_text: str = Field(min_length=1, max_length=180)
+    visual_direction: str = Field(min_length=1, max_length=500)
+
+
+class ReelActionDraft(BaseModel):
+    action_type: Literal["reel"]
+    title: str = Field(min_length=3, max_length=100)
+    hook: str = Field(min_length=3, max_length=280)
+    narration: str = Field(min_length=20, max_length=5000)
+    caption: str = Field(min_length=1, max_length=2200)
+    duration_seconds: int = Field(ge=15, le=60)
+    scenes: list[ReelSceneDraft] = Field(min_length=2, max_length=12)
+    source_urls: list[str] = Field(min_length=1, max_length=12)
+
+
+ActionDraft = TimelineActionDraft | ThreadActionDraft | EvidenceActionDraft | ReelActionDraft
 
 
 class StructuredResearchAnswerBase(BaseModel):
@@ -85,7 +104,11 @@ class StructuredEvidenceResearchAnswer(StructuredResearchAnswerBase):
     action: EvidenceActionDraft
 
 
-RequestedActionType = Literal["timeline", "thread", "evidence"]
+class StructuredReelResearchAnswer(StructuredResearchAnswerBase):
+    action: ReelActionDraft
+
+
+RequestedActionType = Literal["timeline", "thread", "evidence", "reel"]
 
 
 def requested_action_type(message: str) -> RequestedActionType | None:
@@ -98,11 +121,13 @@ def requested_action_type(message: str) -> RequestedActionType | None:
         return "thread"
     if re.search(r"\bevidence\b", normalized):
         return "evidence"
+    if re.search(r"\b(reel|short|video)\b", normalized):
+        return "reel"
     return None
 
 
 class ResearchAction(BaseModel):
-    action_type: Literal["timeline", "thread", "evidence"]
+    action_type: Literal["timeline", "thread", "evidence", "reel"]
     label: str
     method: Literal["POST"] = "POST"
     endpoint: str
@@ -158,6 +183,36 @@ def build_research_action(
             payload=payload,
         )
 
+    if isinstance(draft, ReelActionDraft):
+        source_by_url = {source.url.rstrip("/"): source for source in sources}
+        selected_sources: list[ResearchedSource] = []
+        selected_urls: set[str] = set()
+        for url in draft.source_urls:
+            source = source_by_url.get(url.rstrip("/"))
+            if source is not None and source.url not in selected_urls:
+                selected_sources.append(source)
+                selected_urls.add(source.url)
+        if not selected_sources:
+            return None
+        try:
+            payload = ReelDraftCreate(
+                title=draft.title,
+                hook=draft.hook,
+                narration=draft.narration,
+                caption=draft.caption,
+                duration_seconds=draft.duration_seconds,
+                scenes=[ReelScene.model_validate(scene.model_dump()) for scene in draft.scenes],
+                sources=[ReelSource(title=source.title, url=source.url) for source in selected_sources],
+            ).model_dump(mode="json")
+        except ValueError:
+            return None
+        return ResearchAction(
+            action_type="reel",
+            label="Create reel draft",
+            endpoint=f"/cases/{case_id}/reels",
+            payload=payload,
+        )
+
     source_urls = {source.url.rstrip("/") for source in sources}
     evidence_url = str(draft.url)
     if evidence_url.rstrip("/") not in source_urls:
@@ -200,6 +255,8 @@ class OpenAIChatResearcher:
             response_format = StructuredThreadResearchAnswer
         elif requested_action == "evidence":
             response_format = StructuredEvidenceResearchAnswer
+        elif requested_action == "reel":
+            response_format = StructuredReelResearchAnswer
         else:
             response_format = StructuredResearchAnswer
         action_requirement = (
@@ -233,11 +290,17 @@ class OpenAIChatResearcher:
                 "claims with the web sources you consulted. If the search does not support an answer, say so. "
                 "Keep the answer concise and useful. When the latest user explicitly asks to add or create an "
                 "object, also return exactly one action draft: timeline for a dated event, thread for a discussion "
-                "topic, or evidence for a public source link. Use facts already established in the conversation and "
+                "topic, evidence for a public source link, or reel for a short-form video draft. Use facts already "
+                "established in the conversation and "
                 "current research. Evidence actions must copy a URL from the sources consulted in this response. "
                 "Timeline descriptions and thread bodies must end with the supporting source URLs so the created "
                 "object preserves its provenance. For timeline drafts, include occurred_time when a source or the "
-                "conversation supports an exact local time; otherwise leave it null. "
+                "conversation supports an exact local time; otherwise leave it null. For a reel draft, write a "
+                "neutral 15 to 60 second vertical-video script. Start with a factual hook, distinguish confirmed "
+                "facts from allegations, do not sensationalize harm, and end with a useful unresolved question or "
+                "invitation to review the case. Create contiguous scenes beginning at second zero and ending at "
+                "duration_seconds. Use only URLs from sources consulted in this response in source_urls. Visual "
+                "directions must avoid recreating violence or presenting generated people as real participants. "
                 "Do not propose an action for a normal research question. Never claim the action was already run; "
                 "tell the user it is ready for their review. "
                 f"{action_requirement}"

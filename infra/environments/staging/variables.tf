@@ -74,6 +74,12 @@ variable "scheduled_cases_backend_image" {
   default     = ""
 }
 
+variable "enable_scheduled_reels" {
+  description = "Create the twice-daily YouTube Short generation job after OAuth secrets are ready."
+  type        = bool
+  default     = false
+}
+
 variable "cloud_sql_tier" {
   description = "Cloud SQL machine tier used after enable_cloud_sql is set."
   type        = string

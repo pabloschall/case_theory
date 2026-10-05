@@ -185,7 +185,45 @@ export type ResearchAction = ResearchActionBase & (
         person_ids: string[]
       }
     }
+  | {
+      action_type: 'reel'
+      payload: ReelDraftInput
+    }
 )
+
+export type ReelScene = {
+  start_second: number
+  end_second: number
+  on_screen_text: string
+  visual_direction: string
+}
+
+export type ReelSource = { title: string; url: string }
+
+export type ReelDraftInput = {
+  title: string
+  hook: string
+  narration: string
+  caption: string
+  duration_seconds: number
+  scenes: ReelScene[]
+  sources: ReelSource[]
+}
+
+export type ReelDraft = ReelDraftInput & {
+  id: string
+  case_id: string
+  created_by_user_id: string
+  status: 'draft' | 'approved' | 'generating' | 'rendering' | 'uploading' | 'published' | 'failed'
+  automated: boolean
+  video_object_key: string | null
+  youtube_video_id: string | null
+  youtube_url: string | null
+  error_message: string | null
+  published_at: string | null
+  created_at: string
+  updated_at: string
+}
 
 export type ResearchChatResponse = {
   answer: string

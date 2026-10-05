@@ -48,6 +48,7 @@ from app.progression.models import (
     ProgressionRule,
     UserBadge,
 )
+from app.reels.models import ReelDraft
 from app.subscriptions.models import (
     AIUsageRecord,
     Permission,
@@ -113,4 +114,5 @@ __all__ = [
     "ProgressionLedgerEntry",
     "BadgeDefinition",
     "UserBadge",
+    "ReelDraft",
 ]

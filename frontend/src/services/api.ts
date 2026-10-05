@@ -1,4 +1,4 @@
-import type { AdminCasePage, AdminUserListItem, AdminUserPage, ApiErrorBody, CaseDetail, CaseInvitation, CaseListItem, CaseListPage, CaseLocation, CaseNotebookNote, CasePerson, CaseTimelineEntry, CurrentUser, CursorPage, DirectConversation, DirectConversationSummary, DirectMessage, DiscussionThread, DiscussionThreadPage, Evidence, EvidenceComment, FBICase, FBICasePage, InvitationPreview, LocationType, MemberProfile, MessageAttachment, ModerationReport, ModerationReportPage, PersonNote, PersonRelationship, ProgressionLedgerPage, ProgressionSummary, ReportReason, ReportResourceType, ResearchAction, ResearchChatResponse, TimelineEvent } from '../types'
+import type { AdminCasePage, AdminUserListItem, AdminUserPage, ApiErrorBody, CaseDetail, CaseInvitation, CaseListItem, CaseListPage, CaseLocation, CaseNotebookNote, CasePerson, CaseTimelineEntry, CurrentUser, CursorPage, DirectConversation, DirectConversationSummary, DirectMessage, DiscussionThread, DiscussionThreadPage, Evidence, EvidenceComment, FBICase, FBICasePage, InvitationPreview, LocationType, MemberProfile, MessageAttachment, ModerationReport, ModerationReportPage, PersonNote, PersonRelationship, ProgressionLedgerPage, ProgressionSummary, ReelDraft, ReelDraftInput, ReportReason, ReportResourceType, ResearchAction, ResearchChatResponse, TimelineEvent } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL ?? '/api/v1'
 let csrfToken: string | null = null
@@ -74,10 +74,13 @@ export const api = {
       timeline: `/cases/${caseId}/timeline`,
       thread: `/cases/${caseId}/discussions`,
       evidence: `/cases/${caseId}/evidence/links`,
+      reel: `/cases/${caseId}/reels`,
     }
     if (action.endpoint !== expectedEndpoints[action.action_type] || action.method !== 'POST') throw new Error('The proposed research action is invalid.')
     return request<unknown>(action.endpoint, { method: action.method, body: JSON.stringify(action.payload) })
   },
+  reels: (caseId: string) => request<ReelDraft[]>(`/cases/${caseId}/reels`),
+  updateReel: (caseId: string, reelId: string, data: ReelDraftInput & {status: 'draft' | 'approved'}) => request<ReelDraft>(`/cases/${caseId}/reels/${reelId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   updateCasePrivacy: (id: string, privacy: 'public' | 'private') => request<CaseDetail>(`/cases/${id}/privacy`, { method: 'PATCH', body: JSON.stringify({ privacy }) }),
   createCaseInvitation: (caseId: string) => request<CaseInvitation>(`/cases/${caseId}/invitations`, { method: 'POST', body: JSON.stringify({ role: 'contributor' }) }),
   invitation: (token: string) => request<InvitationPreview>(`/invitations/${token}`),

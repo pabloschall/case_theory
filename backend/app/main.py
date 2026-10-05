@@ -17,6 +17,7 @@ from app.config.settings import get_settings
 from app.discussions.routes import router as discussions_router
 from app.evidence.routes import router as evidence_router
 from app.integrations.fbi.routes import router as fbi_router
+from app.integrations.youtube.routes import router as youtube_router
 from app.invitations.routes import router as invitations_router
 from app.maps.routes import router as maps_router
 from app.messaging.routes import router as messaging_router
@@ -24,6 +25,7 @@ from app.moderation.routes import router as moderation_router
 from app.notes.routes import router as notes_router
 from app.people.routes import router as people_router
 from app.progression.routes import router as progression_router
+from app.reels.routes import router as reels_router
 from app.seo import router as seo_router
 from app.subscriptions.routes import router as subscription_router
 from app.users.routes import router as user_router
@@ -66,8 +68,10 @@ app.include_router(evidence_router, prefix=settings.api_prefix)
 app.include_router(maps_router, prefix=settings.api_prefix)
 app.include_router(people_router, prefix=settings.api_prefix)
 app.include_router(progression_router, prefix=settings.api_prefix)
+app.include_router(reels_router, prefix=settings.api_prefix)
 app.include_router(admin_router, prefix=settings.api_prefix)
 app.include_router(fbi_router, prefix=settings.api_prefix)
+app.include_router(youtube_router, prefix=settings.api_prefix)
 app.include_router(invitations_router, prefix=settings.api_prefix)
 app.include_router(messaging_router, prefix=settings.api_prefix)
 app.include_router(notes_router, prefix=settings.api_prefix)

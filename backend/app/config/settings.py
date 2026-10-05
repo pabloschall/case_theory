@@ -30,6 +30,18 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     ai_text_model: str = "gpt-5-mini"
     ai_image_model: str = "gpt-image-2.5-flare"
+    ai_speech_model: str = "gpt-4o-mini-tts"
+    ai_speech_voice: str = "cedar"
+    reel_site_label: str = "case-researcher.com"
+    reel_image_count: int = Field(default=3, ge=2, le=6)
+    reel_music_volume: float = Field(default=0.1, ge=0, le=0.5)
+    youtube_client_id: str = ""
+    youtube_client_secret: str = ""
+    youtube_refresh_token: str = ""
+    youtube_channel_id: str = ""
+    youtube_redirect_uri: str = "http://localhost:8000/api/v1/integrations/youtube/callback"
+    youtube_privacy_status: Literal["private", "unlisted", "public"] = "public"
+    youtube_category_id: str = "27"
     local_storage_path: str = "/app/storage-data"
     storage_provider: Literal["gcs", "fake_gcs"] = "fake_gcs"
     gcs_bucket: str = "eillen-evidence"

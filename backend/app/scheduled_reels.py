@@ -1,0 +1,600 @@
+"""Create and publish one sourced YouTube Short for the current twelve-hour slot."""
+
+import argparse
+import asyncio
+import base64
+import json
+import re
+import tempfile
+from datetime import UTC, datetime
+from pathlib import Path
+
+import httpx
+import structlog
+from openai import AsyncOpenAI
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import exists, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from app.cases.models import Case, CaseSummary, Source
+from app.common.errors import AppError
+from app.common.timestamps import utc_now
+from app.config.settings import Settings, get_settings
+from app.db import models as _models  # noqa: F401  Register every mapper for the standalone job.
+from app.integrations.youtube.oauth import authorized_channel
+from app.reels.models import ReelDraft
+from app.storage.provider import get_storage_provider
+
+logger = structlog.get_logger()
+FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+MUSIC_TRACKS = (
+    Path(__file__).resolve().parent / "reels" / "assets" / "landing-1.mp3",
+    Path(__file__).resolve().parent / "reels" / "assets" / "landing_2.mp3",
+)
+HASHTAG_STOP_WORDS = {"a", "an", "and", "case", "criminal", "killing", "of", "summary", "the"}
+
+
+class GeneratedReelScene(BaseModel):
+    on_screen_text: str = Field(min_length=2, max_length=90)
+    image_prompt: str = Field(min_length=20, max_length=1000)
+
+
+class GeneratedReelScript(BaseModel):
+    title: str = Field(min_length=3, max_length=100)
+    hook: str = Field(min_length=3, max_length=180)
+    narration: str = Field(min_length=300, max_length=1000)
+    caption: str = Field(min_length=20, max_length=1800)
+    scenes: list[GeneratedReelScene] = Field(min_length=3, max_length=6)
+
+    @field_validator("narration")
+    @classmethod
+    def narration_fits_a_short(cls, value: str) -> str:
+        word_count = len(value.split())
+        if word_count < 75 or word_count > 130:
+            raise ValueError("Narration must contain 75 to 130 words")
+        return value
+
+
+def _hashtag_for_phrase(value: str, *, max_words: int) -> str | None:
+    without_parentheticals = re.sub(r"\([^)]*\)", "", value)
+    words = [
+        word
+        for word in re.findall(r"[A-Za-z0-9]+", without_parentheticals)
+        if word.lower() not in HASHTAG_STOP_WORDS
+    ][:max_words]
+    if not words:
+        return None
+    hashtag = "#" + "".join(word[:1].upper() + word[1:] for word in words)
+    return hashtag[:50]
+
+
+def case_hashtags(title: str, location: str | None) -> list[str]:
+    hashtags: list[str] = []
+    case_tag = _hashtag_for_phrase(title, max_words=4)
+    location_tag = _hashtag_for_phrase(location, max_words=3) if location else None
+    for hashtag in (case_tag, location_tag, "#CaseResearcher"):
+        if hashtag and hashtag.casefold() not in {item.casefold() for item in hashtags}:
+            hashtags.append(hashtag)
+    return hashtags
+
+
+def build_youtube_description(
+    caption: str,
+    source_urls: list[str],
+    site_label: str,
+    hashtags: list[str],
+) -> str:
+    source_lines = "\n".join(f"- {url}" for url in source_urls[:5])
+    hashtag_line = " ".join(hashtags[:3])
+    return (
+        f"{caption}\n\n"
+        f"Explore the full case at https://{site_label}\n\n"
+        f"Sources:\n{source_lines}\n\n"
+        "This video uses AI-generated narration and background imagery.\n\n"
+        f"{hashtag_line}"
+    )
+
+
+def reel_slot(now: datetime) -> str:
+    slot = "am" if now.hour < 12 else "pm"
+    return f"youtube:{now.date().isoformat()}:{slot}"
+
+
+def music_track_for_slot(slot: str) -> Path:
+    """Alternate the bundled tracks between consecutive twelve-hour slots."""
+    date_text, period = slot.rsplit(":", 2)[-2:]
+    slot_number = datetime.fromisoformat(date_text).toordinal() * 2 + (period == "pm")
+    return MUSIC_TRACKS[slot_number % len(MUSIC_TRACKS)]
+
+
+def _srt_time(seconds: float) -> str:
+    milliseconds = max(0, round(seconds * 1000))
+    hours, remainder = divmod(milliseconds, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    whole_seconds, milliseconds = divmod(remainder, 1000)
+    return f"{hours:02}:{minutes:02}:{whole_seconds:02},{milliseconds:03}"
+
+
+def build_srt(scene_texts: list[str], narration_seconds: float) -> str:
+    segment = narration_seconds / len(scene_texts)
+    blocks = []
+    for index, text in enumerate(scene_texts, start=1):
+        start = (index - 1) * segment
+        end = index * segment
+        blocks.append(f"{index}\n{_srt_time(start)} --> {_srt_time(end)}\n{text.strip()}\n")
+    return "\n".join(blocks)
+
+
+async def _run_process(*command: str) -> bytes:
+    process = await asyncio.create_subprocess_exec(
+        *command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await process.communicate()
+    if process.returncode != 0:
+        detail = stderr.decode(errors="replace")[-2000:]
+        raise RuntimeError(f"{Path(command[0]).name} failed: {detail}")
+    return stdout
+
+
+async def audio_duration(path: Path) -> float:
+    output = await _run_process(
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        str(path),
+    )
+    duration = float(output.decode().strip())
+    if duration <= 0 or duration > 56:
+        raise RuntimeError("Generated narration has an invalid duration")
+    return duration
+
+
+async def render_vertical_video(
+    directory: Path,
+    images: list[bytes],
+    audio: bytes,
+    scene_texts: list[str],
+    site_label: str,
+    music_path: Path,
+    music_volume: float,
+) -> tuple[bytes, int, list[dict[str, object]]]:
+    if not await asyncio.to_thread(music_path.is_file):
+        raise RuntimeError(f"Reel music track is missing: {music_path.name}")
+    audio_path = directory / "narration.mp3"
+    audio_path.write_bytes(audio)
+    image_paths = []
+    for index, content in enumerate(images):
+        path = directory / f"scene-{index}.webp"
+        path.write_bytes(content)
+        image_paths.append(path)
+    narration_seconds = await audio_duration(audio_path)
+    segment_seconds = narration_seconds / len(image_paths)
+    total_seconds = narration_seconds + 4
+    srt_path = directory / "captions.srt"
+    srt_path.write_text(build_srt(scene_texts, narration_seconds), encoding="utf-8")
+    output_path = directory / "reel.mp4"
+
+    inputs: list[str] = []
+    for path in image_paths:
+        inputs.extend(["-loop", "1", "-t", f"{segment_seconds:.3f}", "-i", str(path)])
+    inputs.extend(
+        [
+            "-f",
+            "lavfi",
+            "-t",
+            "4",
+            "-i",
+            "color=c=0x0b1117:s=1080x1920:r=30",
+            "-i",
+            str(audio_path),
+            "-stream_loop",
+            "-1",
+            "-i",
+            str(music_path),
+        ]
+    )
+    filters = []
+    video_labels = []
+    for index in range(len(image_paths)):
+        label = f"v{index}"
+        filters.append(
+            f"[{index}:v]scale=1080:1920:force_original_aspect_ratio=increase,"
+            f"crop=1080:1920,setsar=1,fps=30[{label}]"
+        )
+        video_labels.append(f"[{label}]")
+    end_index = len(image_paths)
+    filters.append(
+        f"[{end_index}:v]drawtext=fontfile={FONT_PATH}:text='{site_label}':"
+        "fontcolor=white:fontsize=62:x=(w-text_w)/2:y=(h-text_h)/2,"
+        "drawtext=fontfile=" + FONT_PATH + ":text='Explore the full case':"
+        "fontcolor=0xd5a64a:fontsize=34:x=(w-text_w)/2:y=(h-text_h)/2-90[vend]"
+    )
+    video_labels.append("[vend]")
+    filters.append(
+        "".join(video_labels)
+        + f"concat=n={len(video_labels)}:v=1:a=0[sequence]"
+    )
+    escaped_srt = str(srt_path).replace("'", "\\'")
+    filters.append(
+        f"[sequence]subtitles='{escaped_srt}':force_style='FontName=DejaVu Sans,FontSize=18,"
+        "PrimaryColour=&H00FFFFFF,OutlineColour=&HAA000000,BorderStyle=3,Outline=1,"
+        "Shadow=0,Alignment=2,MarginV=150',"
+        f"drawtext=fontfile={FONT_PATH}:text='AI-generated narration':fontcolor=white@0.72:"
+        "fontsize=20:x=36:y=36[outv]"
+    )
+    narration_index = len(image_paths) + 1
+    music_index = narration_index + 1
+    fade_start = max(0, total_seconds - 2)
+    filters.extend(
+        [
+            f"[{narration_index}:a]apad=pad_dur=4[narration]",
+            f"[{music_index}:a]atrim=0:{total_seconds:.3f},asetpts=PTS-STARTPTS,"
+            f"volume={music_volume:.3f},afade=t=out:st={fade_start:.3f}:d=2[music]",
+            "[narration][music]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0[outa]",
+        ]
+    )
+    await _run_process(
+        "ffmpeg",
+        "-y",
+        *inputs,
+        "-filter_complex",
+        ";".join(filters),
+        "-map",
+        "[outv]",
+        "-map",
+        "[outa]",
+        "-t",
+        f"{total_seconds:.3f}",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "20",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-movflags",
+        "+faststart",
+        str(output_path),
+    )
+    scenes = [
+        {
+            "start_second": round((index - 1) * segment_seconds),
+            "end_second": round(index * segment_seconds),
+            "on_screen_text": text,
+            "visual_direction": "AI-generated symbolic editorial background",
+        }
+        for index, text in enumerate(scene_texts, start=1)
+    ]
+    scenes[-1]["end_second"] = round(narration_seconds)
+    return output_path.read_bytes(), round(total_seconds), scenes
+
+
+class YouTubeUploader:
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
+
+    def configured(self) -> bool:
+        return all(
+            (
+                self.settings.youtube_client_id,
+                self.settings.youtube_client_secret,
+                self.settings.youtube_refresh_token,
+            )
+        )
+
+    async def upload(self, video: bytes, *, title: str, description: str) -> str:
+        if not self.configured():
+            raise RuntimeError("YouTube OAuth credentials are not configured")
+        async with httpx.AsyncClient(timeout=180) as client:
+            token_response = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "client_id": self.settings.youtube_client_id,
+                    "client_secret": self.settings.youtube_client_secret,
+                    "refresh_token": self.settings.youtube_refresh_token,
+                    "grant_type": "refresh_token",
+                },
+            )
+            token_response.raise_for_status()
+            access_token = token_response.json()["access_token"]
+            if self.settings.youtube_channel_id:
+                try:
+                    channel = await authorized_channel(access_token)
+                except AppError as exc:
+                    raise RuntimeError(exc.message) from exc
+                if channel.id != self.settings.youtube_channel_id:
+                    raise RuntimeError(
+                        f"YouTube token belongs to {channel.title} ({channel.id}), "
+                        f"not configured channel {self.settings.youtube_channel_id}"
+                    )
+            metadata = {
+                "snippet": {
+                    "title": title[:100],
+                    "description": description[:5000],
+                    "categoryId": self.settings.youtube_category_id,
+                    "tags": ["case research", "case researcher", "true crime", "shorts"],
+                },
+                "status": {"privacyStatus": self.settings.youtube_privacy_status},
+            }
+            start = await client.post(
+                "https://www.googleapis.com/upload/youtube/v3/videos",
+                params={"uploadType": "resumable", "part": "snippet,status"},
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json; charset=UTF-8",
+                    "X-Upload-Content-Length": str(len(video)),
+                    "X-Upload-Content-Type": "video/mp4",
+                },
+                content=json.dumps(metadata),
+            )
+            start.raise_for_status()
+            upload_url = start.headers.get("Location")
+            if not upload_url:
+                raise RuntimeError("YouTube did not return a resumable upload URL")
+            uploaded = await client.put(
+                upload_url,
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "video/mp4",
+                    "Content-Length": str(len(video)),
+                },
+                content=video,
+            )
+            uploaded.raise_for_status()
+            video_id = uploaded.json().get("id")
+            if not isinstance(video_id, str) or not video_id:
+                raise RuntimeError("YouTube upload returned no video ID")
+            return video_id
+
+
+async def select_case(db: AsyncSession) -> tuple[Case, CaseSummary, list[Source]] | None:
+    already_used = exists(
+        select(ReelDraft.id).where(ReelDraft.case_id == Case.id, ReelDraft.automated.is_(True))
+    )
+    has_sources = exists(select(Source.id).where(Source.case_id == Case.id))
+    row = (
+        await db.execute(
+            select(Case, CaseSummary)
+            .join(CaseSummary, CaseSummary.case_id == Case.id)
+            .where(
+                Case.privacy == "public",
+                Case.status == "active",
+                Case.ai_research_status == "complete",
+                CaseSummary.is_current.is_(True),
+                ~already_used,
+                has_sources,
+            )
+            .order_by(Case.view_count.desc(), Case.created_at.desc())
+            .limit(1)
+        )
+    ).first()
+    if row is None:
+        return None
+    case, summary = row
+    sources = list(
+        (await db.scalars(select(Source).where(Source.case_id == case.id).order_by(Source.position).limit(8))).all()
+    )
+    if not sources:
+        return None
+    return case, summary, sources
+
+
+async def generate_script(
+    client: AsyncOpenAI,
+    settings: Settings,
+    case: Case,
+    summary: CaseSummary,
+    sources: list[Source],
+) -> GeneratedReelScript:
+    catalog = "\n".join(f"[{index}] {source.title} — {source.url}" for index, source in enumerate(sources, 1))
+    response = await client.responses.parse(
+        model=settings.ai_text_model,
+        instructions=(
+            "Turn the supplied sourced case overview into a 35 to 55 second YouTube Short. Write 85 to 125 "
+            "spoken words in a calm documentary voice. Start with a factual hook, distinguish confirmed facts "
+            "from allegations, avoid graphic or sensational wording, and invite viewers to examine the full case. "
+            "Do not add facts, names, dates, or accusations beyond the overview and source catalog. Create exactly "
+            f"{settings.reel_image_count} symbolic editorial background scenes. Image prompts must be portrait, "
+            "cinematic, non-graphic, contain no readable text or logos, and must not recreate real people or imply "
+            "that an AI-generated person is a real participant. The caption must disclose AI-generated narration."
+        ),
+        input=f"CASE\n{case.title}\n\nOVERVIEW\n{summary.body}\n\nSOURCES\n{catalog}",
+        text_format=GeneratedReelScript,
+    )
+    script = response.output_parsed
+    if script is None or len(script.scenes) != settings.reel_image_count:
+        raise RuntimeError("OpenAI returned an invalid reel script")
+    return script
+
+
+async def run(*, dry_run: bool = False, skip_upload: bool = False) -> None:
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise RuntimeError("OPENAI_API_KEY is required for scheduled reels")
+    if not dry_run and not skip_upload and not YouTubeUploader(settings).configured():
+        raise RuntimeError("YouTube OAuth credentials are required for scheduled reel publishing")
+    slot = reel_slot(datetime.now(UTC))
+    engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    item: ReelDraft | None = None
+    try:
+        async with session_factory() as db:
+            existing = await db.scalar(select(ReelDraft).where(ReelDraft.scheduled_slot == slot))
+            if existing is not None:
+                if existing.status == "published" or dry_run:
+                    logger.info("scheduled_reel_slot_already_claimed", slot=slot, status=existing.status)
+                    return
+                case = await db.get(Case, existing.case_id)
+                if case is None:
+                    raise RuntimeError("Scheduled reel case no longer exists")
+                sources = list(
+                    (
+                        await db.scalars(
+                            select(Source).where(Source.case_id == case.id).order_by(Source.position).limit(8)
+                        )
+                    ).all()
+                )
+                script = GeneratedReelScript(
+                    title=existing.title,
+                    hook=existing.hook,
+                    narration=existing.narration,
+                    caption=existing.caption,
+                    scenes=[
+                        GeneratedReelScene(
+                            on_screen_text=str(scene["on_screen_text"]),
+                            image_prompt=str(scene["visual_direction"]),
+                        )
+                        for scene in existing.scenes
+                    ],
+                )
+                item = existing
+                item.status = "generating"
+                item.error_message = None
+                await db.commit()
+                logger.info("scheduled_reel_resuming", slot=slot, reel_id=str(item.id))
+            else:
+                selected = await select_case(db)
+                if selected is None:
+                    logger.info("scheduled_reel_no_eligible_case", slot=slot)
+                    return
+                case, summary, sources = selected
+                client = AsyncOpenAI(api_key=settings.openai_api_key)
+                script = await generate_script(client, settings, case, summary, sources)
+                if dry_run:
+                    logger.info("scheduled_reel_preview", case_id=str(case.id), title=script.title)
+                    return
+                scene_span = 45 // len(script.scenes)
+                item = ReelDraft(
+                    case_id=case.id,
+                    created_by_user_id=case.created_by_user_id,
+                    status="generating",
+                    automated=True,
+                    scheduled_slot=slot,
+                    title=script.title,
+                    hook=script.hook,
+                    narration=script.narration,
+                    caption=script.caption,
+                    duration_seconds=45,
+                    scenes=[
+                        {
+                            "start_second": index * scene_span,
+                            "end_second": (index + 1) * scene_span if index < len(script.scenes) - 1 else 45,
+                            "on_screen_text": scene.on_screen_text,
+                            "visual_direction": scene.image_prompt,
+                        }
+                        for index, scene in enumerate(script.scenes)
+                    ],
+                    sources=[{"title": source.title, "url": source.url} for source in sources],
+                )
+                db.add(item)
+                try:
+                    await db.commit()
+                except IntegrityError:
+                    await db.rollback()
+                    logger.info("scheduled_reel_slot_claimed_concurrently", slot=slot)
+                    return
+
+            client = AsyncOpenAI(api_key=settings.openai_api_key)
+
+            try:
+                images = []
+                for scene in script.scenes:
+                    result = await client.images.generate(
+                        model=settings.ai_image_model,
+                        prompt=scene.image_prompt,
+                        size="1024x1536",
+                        quality="low",
+                        output_format="webp",
+                        n=1,
+                    )
+                    encoded = result.data[0].b64_json if result.data else None
+                    if not encoded:
+                        raise RuntimeError("OpenAI returned no reel background image")
+                    images.append(base64.b64decode(encoded))
+                speech = await client.audio.speech.create(
+                    model=settings.ai_speech_model,
+                    voice=settings.ai_speech_voice,
+                    input=script.narration,
+                    instructions="Calm, clear documentary narration. Respectful, measured, and never sensational.",
+                    response_format="mp3",
+                )
+                item.status = "rendering"
+                await db.commit()
+                with tempfile.TemporaryDirectory(prefix="case-theory-reel-") as temp_name:
+                    video, duration, scenes = await render_vertical_video(
+                        Path(temp_name),
+                        images,
+                        speech.content,
+                        [scene.on_screen_text for scene in script.scenes],
+                        settings.reel_site_label,
+                        music_track_for_slot(slot),
+                        settings.reel_music_volume,
+                    )
+                object_key = f"reels/{item.id}/video.mp4"
+                await get_storage_provider().put(object_key, video, "video/mp4")
+                item.video_object_key = object_key
+                item.duration_seconds = duration
+                item.scenes = scenes
+                if skip_upload:
+                    item.status = "approved"
+                    await db.commit()
+                    logger.info("scheduled_reel_rendered", reel_id=str(item.id), object_key=object_key)
+                    return
+                item.status = "uploading"
+                await db.commit()
+                description = build_youtube_description(
+                    script.caption,
+                    [source.url for source in sources],
+                    settings.reel_site_label,
+                    case_hashtags(case.title, case.location),
+                )
+                video_id = await YouTubeUploader(settings).upload(
+                    video,
+                    title=script.title,
+                    description=description,
+                )
+                item.status = "published"
+                item.youtube_video_id = video_id
+                item.youtube_url = f"https://www.youtube.com/watch?v={video_id}"
+                item.published_at = utc_now()
+                await db.commit()
+                logger.info(
+                    "scheduled_reel_published",
+                    reel_id=str(item.id),
+                    case_id=str(case.id),
+                    youtube_video_id=video_id,
+                )
+            except Exception as exc:
+                await db.rollback()
+                failed = await db.get(ReelDraft, item.id)
+                if failed is not None:
+                    failed.status = "failed"
+                    failed.error_message = str(exc)[:1000]
+                    await db.commit()
+                raise
+    finally:
+        await engine.dispose()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate and publish one scheduled YouTube Short")
+    parser.add_argument("--dry-run", action="store_true", help="Generate the script without storing or rendering it")
+    parser.add_argument("--skip-upload", action="store_true", help="Render and store the MP4 without uploading it")
+    arguments = parser.parse_args()
+    asyncio.run(run(dry_run=arguments.dry_run, skip_upload=arguments.skip_upload))
+
+
+if __name__ == "__main__":
+    main()

@@ -75,6 +75,8 @@ export function ResearcherChat({caseId, title}: {caseId: string; title: string})
                 ? ['case', caseId, 'discussions']
                 : action.action_type === 'evidence'
                     ? ['case', caseId, 'evidence']
+                    : action.action_type === 'reel'
+                        ? ['case', caseId, 'reels']
                     : ['case', caseId]
             await queryClient.invalidateQueries({queryKey})
         } catch (failure) {
@@ -89,7 +91,7 @@ export function ResearcherChat({caseId, title}: {caseId: string; title: string})
     return <section className={`card mx-auto flex max-w-4xl flex-col overflow-hidden ${hasConversation ? 'min-h-[60vh]' : ''}`}>
         <div className="border-b border-subtle p-5 sm:p-6">
             <h2 className="section-title flex items-center gap-2"><Sparkles size={19} className="text-accent"/> Researcher</h2>
-            <p className="mt-2 text-sm leading-6 text-secondary">Ask about {title}. The researcher uses this case’s title and overview, searches public web sources, and links the sources it finds.</p>
+            <p className="mt-2 text-sm leading-6 text-secondary">Ask about {title}, or ask for a sourced reel draft. The researcher uses this case’s title and overview, searches public web sources, and links the sources it finds.</p>
         </div>
         {hasConversation && <div className="flex-1 space-y-5 p-5 sm:p-6" aria-live="polite">
             {messages.map((message, index) => <div key={index} className={message.role === 'user' ? 'ml-auto max-w-[85%] rounded-xl bg-accent-muted p-4 text-sm text-primary' : 'max-w-[95%] rounded-xl border border-subtle bg-tertiary/50 p-4 text-sm text-secondary'}>
@@ -110,7 +112,7 @@ export function ResearcherChat({caseId, title}: {caseId: string; title: string})
         <form onSubmit={submit} className={`${hasConversation ? 'border-t' : ''} border-subtle p-5 sm:p-6`}>
             {error && <p role="alert" className="error-banner mb-3">{error}</p>}
             <label htmlFor="research-question" className="sr-only">Ask the researcher</label>
-            <div className="flex items-end gap-3"><textarea id="research-question" className="field min-h-20 flex-1 resize-y py-3" maxLength={2000} value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Ask a question about this case…" onKeyDown={(event) => {if (event.key === 'Enter' && !event.shiftKey) {event.preventDefault(); event.currentTarget.form?.requestSubmit()}}}/><button className="primary-button shrink-0" type="submit" disabled={pending || !draft.trim()}><Send size={15}/> Send</button></div>
+            <div className="flex items-end gap-3"><textarea id="research-question" className="field min-h-20 flex-1 resize-y py-3" maxLength={2000} value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Ask a question, or ‘Create a 45-second reel about the timeline’…" onKeyDown={(event) => {if (event.key === 'Enter' && !event.shiftKey) {event.preventDefault(); event.currentTarget.form?.requestSubmit()}}}/><button className="primary-button shrink-0" type="submit" disabled={pending || !draft.trim()}><Send size={15}/> Send</button></div>
             <p className="mt-2 text-xs text-muted">Answers may be incomplete. Check the linked sources before relying on a claim.</p>
         </form>
     </section>
@@ -119,5 +121,6 @@ export function ResearcherChat({caseId, title}: {caseId: string; title: string})
 function actionDescription(action: ResearchAction) {
     if (action.action_type === 'timeline') return `${action.payload.occurred_on}${action.payload.occurred_time ? ` at ${action.payload.occurred_time.slice(0, 5)}` : ''} · ${action.payload.description}`
     if (action.action_type === 'thread') return `${action.payload.thread_type.replaceAll('_', ' ')} · ${action.payload.body}`
-    return `${action.payload.evidence_type} · ${action.payload.url}`
+    if (action.action_type === 'evidence') return `${action.payload.evidence_type} · ${action.payload.url}`
+    return `${action.payload.duration_seconds} seconds · ${action.payload.scenes.length} scenes · ${action.payload.hook}`
 }

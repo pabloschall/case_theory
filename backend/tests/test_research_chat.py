@@ -10,8 +10,11 @@ from sqlalchemy import select
 from app.ai.chat_research import (
     ChatResearchResponse,
     EvidenceActionDraft,
+    ReelActionDraft,
+    ReelSceneDraft,
     ResearchAction,
     StructuredEvidenceResearchAnswer,
+    StructuredReelResearchAnswer,
     StructuredResearchAnswer,
     StructuredThreadResearchAnswer,
     StructuredTimelineResearchAnswer,
@@ -39,6 +42,7 @@ def test_structured_research_schema_uses_openai_supported_constructs() -> None:
         ("Can you add that to the timeline?", "timeline"),
         ("Create a discussion thread from this", "thread"),
         ("Save this source as evidence", "evidence"),
+        ("Create a reel about this case", "reel"),
         ("What does the timeline say?", None),
     ],
 )
@@ -50,7 +54,12 @@ def test_requested_action_type_only_matches_explicit_creation_requests(
 
 @pytest.mark.parametrize(
     "response_type",
-    [StructuredTimelineResearchAnswer, StructuredThreadResearchAnswer, StructuredEvidenceResearchAnswer],
+    [
+        StructuredTimelineResearchAnswer,
+        StructuredThreadResearchAnswer,
+        StructuredEvidenceResearchAnswer,
+        StructuredReelResearchAnswer,
+    ],
 )
 def test_explicit_action_response_schemas_require_an_action(response_type: type[BaseModel]) -> None:
     schema = response_type.model_json_schema()
@@ -117,6 +126,50 @@ def test_timeline_action_uses_the_case_scoped_endpoint_and_valid_payload() -> No
     assert action.payload["occurred_on"] == "2024-03-12"
     assert action.payload["evidence_ids"] == []
     assert action.payload["description"].endswith("https://example.gov/case")
+
+
+def test_reel_action_uses_only_returned_sources_and_validates_scene_timing() -> None:
+    case_id = uuid.uuid4()
+    draft = ReelActionDraft(
+        action_type="reel",
+        title="What the record shows",
+        hook="One detail changed the public timeline.",
+        narration="The official record documents a key update and leaves an important question unresolved.",
+        caption="Review the documented timeline and its original source.",
+        duration_seconds=30,
+        scenes=[
+            ReelSceneDraft(
+                start_second=0,
+                end_second=10,
+                on_screen_text="A documented update",
+                visual_direction="Show a neutral date card over an abstract case-file background.",
+            ),
+            ReelSceneDraft(
+                start_second=10,
+                end_second=30,
+                on_screen_text="What remains unresolved?",
+                visual_direction="Show the sourced timeline and a restrained question card.",
+            ),
+        ],
+        source_urls=["https://example.gov/case", "https://untrusted.example/story"],
+    )
+    action = build_research_action(
+        draft,
+        case_id=case_id,
+        sources=[ResearchedSource(title="Public record", url="https://example.gov/case")],
+    )
+    assert action is not None
+    assert action.endpoint == f"/cases/{case_id}/reels"
+    assert action.payload["sources"] == [
+        {"title": "Public record", "url": "https://example.gov/case"}
+    ]
+
+    draft.scenes[1].start_second = 11
+    assert build_research_action(
+        draft,
+        case_id=case_id,
+        sources=[ResearchedSource(title="Public record", url="https://example.gov/case")],
+    ) is None
 
 
 async def test_research_chat_uses_stored_case_context_and_returns_sources(
