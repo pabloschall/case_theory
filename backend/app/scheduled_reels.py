@@ -324,6 +324,15 @@ async def render_vertical_video(
     )
     scenes = build_scene_metadata(scene_texts, scene_prompts, scene_narrations, scene_durations)
     scenes[-1]["end_second"] = round(narration_seconds)
+    scenes.append(
+        {
+            "start_second": round(narration_seconds),
+            "end_second": round(total_seconds),
+            "on_screen_text": f"Explore the full case at {site_label}",
+            "visual_direction": "Brand end card",
+            "narration_text": "",
+        }
+    )
     return output_path.read_bytes(), round(total_seconds), scenes
 
 

@@ -85,7 +85,16 @@ async def test_reel_draft_create_list_and_approve(client: AsyncClient) -> None:
         stored = await db.scalar(select(ReelDraft).where(ReelDraft.id == uuid.UUID(reel["id"])))
         assert stored is not None
         stored.automated = True
+        stored.duration_seconds = 34
         await db.commit()
+    listed_legacy_automated = await client.get(f"/api/v1/cases/{case_id}/reels")
+    assert listed_legacy_automated.status_code == 200
+    assert listed_legacy_automated.json()[0]["scenes"][-1] == {
+        "start_second": 30,
+        "end_second": 34,
+        "on_screen_text": "Explore the full case",
+        "visual_direction": "Brand end card",
+    }
     read_only = await client.patch(
         f"/api/v1/cases/{case_id}/reels/{reel['id']}",
         headers=headers,

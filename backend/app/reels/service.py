@@ -18,7 +18,23 @@ class ReelService:
         items = await self.db.scalars(
             select(ReelDraft).where(ReelDraft.case_id == case_id).order_by(ReelDraft.updated_at.desc())
         )
-        return [ReelDraftRead.model_validate(item) for item in items]
+        return [self._read(item) for item in items]
+
+    @staticmethod
+    def _read(item: ReelDraft) -> ReelDraftRead:
+        data = {field: getattr(item, field) for field in ReelDraftRead.model_fields}
+        scenes = [dict(scene) for scene in item.scenes]
+        if item.automated and scenes and scenes[-1]["end_second"] < item.duration_seconds:
+            scenes.append(
+                {
+                    "start_second": scenes[-1]["end_second"],
+                    "end_second": item.duration_seconds,
+                    "on_screen_text": "Explore the full case",
+                    "visual_direction": "Brand end card",
+                }
+            )
+        data["scenes"] = scenes
+        return ReelDraftRead.model_validate(data)
 
     async def create(self, case_id: uuid.UUID, user: User, data: ReelDraftCreate) -> ReelDraftRead:
         if await self.db.scalar(select(Case.id).where(Case.id == case_id)) is None:
@@ -31,7 +47,7 @@ class ReelService:
         self.db.add(item)
         await self.db.commit()
         await self.db.refresh(item)
-        return ReelDraftRead.model_validate(item)
+        return self._read(item)
 
     async def update(
         self,
@@ -40,9 +56,7 @@ class ReelService:
         user: User,
         data: ReelDraftUpdate,
     ) -> ReelDraftRead:
-        item = await self.db.scalar(
-            select(ReelDraft).where(ReelDraft.id == reel_id, ReelDraft.case_id == case_id)
-        )
+        item = await self.db.scalar(select(ReelDraft).where(ReelDraft.id == reel_id, ReelDraft.case_id == case_id))
         if item is None:
             raise AppError(404, "reel_not_found", "Reel draft was not found")
         if item.automated:
@@ -54,4 +68,4 @@ class ReelService:
             setattr(item, field, value)
         await self.db.commit()
         await self.db.refresh(item)
-        return ReelDraftRead.model_validate(item)
+        return self._read(item)
