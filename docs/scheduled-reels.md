@@ -24,7 +24,7 @@ REEL_SITE_LABEL=case-researcher.com
 REEL_MUSIC_VOLUME=0.10
 ```
 
-The Google OAuth grant must include `https://www.googleapis.com/auth/youtube.upload`. YouTube may restrict uploads from an unaudited API project to private visibility until the project passes its compliance audit.
+The Google OAuth grant must include `https://www.googleapis.com/auth/youtube.upload` for publishing and `https://www.googleapis.com/auth/youtube.readonly` for verifying the destination channel. YouTube may restrict uploads from an unaudited API project to private visibility until the project passes its compliance audit.
 
 After configuring the client ID, client secret, and redirect URI, sign in to the application as an administrator and open `/api/v1/integrations/youtube/connect`. Approve access using the Google account that owns the destination channel. The callback verifies and displays the authorized channel, then displays the refresh token and stable channel ID once while preventing the response from being cached. Confirm the channel is `@CaseResearcher`, then store both values in `.env` locally and in the production secret store; do not commit them.
 

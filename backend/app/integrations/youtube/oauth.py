@@ -11,6 +11,8 @@ from app.common.timestamps import utc_now
 from app.config.settings import Settings
 
 YOUTUBE_UPLOAD_SCOPE = "https://www.googleapis.com/auth/youtube.upload"
+YOUTUBE_READONLY_SCOPE = "https://www.googleapis.com/auth/youtube.readonly"
+YOUTUBE_SCOPES = (YOUTUBE_UPLOAD_SCOPE, YOUTUBE_READONLY_SCOPE)
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 YOUTUBE_CHANNELS_URL = "https://www.googleapis.com/youtube/v3/channels"
@@ -64,7 +66,7 @@ def authorization_url(settings: Settings) -> str:
             "client_id": settings.youtube_client_id,
             "redirect_uri": settings.youtube_redirect_uri,
             "response_type": "code",
-            "scope": YOUTUBE_UPLOAD_SCOPE,
+            "scope": " ".join(YOUTUBE_SCOPES),
             "access_type": "offline",
             "include_granted_scopes": "true",
             "prompt": "consent",

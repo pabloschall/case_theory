@@ -6,6 +6,7 @@ import pytest
 
 from app.config.settings import Settings
 from app.integrations.youtube.oauth import (
+    YOUTUBE_READONLY_SCOPE,
     YOUTUBE_UPLOAD_SCOPE,
     authorization_url,
     authorized_channel,
@@ -24,13 +25,13 @@ def youtube_settings() -> Settings:
     )
 
 
-def test_authorization_url_requests_offline_upload_access() -> None:
+def test_authorization_url_requests_offline_upload_and_channel_access() -> None:
     settings = youtube_settings()
     parsed = urlparse(authorization_url(settings))
     query = parse_qs(parsed.query)
 
     assert parsed.netloc == "accounts.google.com"
-    assert query["scope"] == [YOUTUBE_UPLOAD_SCOPE]
+    assert set(query["scope"][0].split()) == {YOUTUBE_UPLOAD_SCOPE, YOUTUBE_READONLY_SCOPE}
     assert query["access_type"] == ["offline"]
     assert query["prompt"] == ["consent"]
     assert query["redirect_uri"] == [settings.youtube_redirect_uri]
