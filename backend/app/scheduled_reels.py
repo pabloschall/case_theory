@@ -28,6 +28,8 @@ from app.storage.provider import get_storage_provider
 
 logger = structlog.get_logger()
 FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+MAX_NARRATION_SECONDS = 56.0
+TARGET_NARRATION_SECONDS = 55.0
 MUSIC_TRACKS = (
     Path(__file__).resolve().parent / "reels" / "assets" / "landing-1.mp3",
     Path(__file__).resolve().parent / "reels" / "assets" / "landing_2.mp3",
@@ -186,9 +188,36 @@ async def audio_duration(path: Path) -> float:
         str(path),
     )
     duration = float(output.decode().strip())
-    if duration <= 0 or duration > 56:
+    if duration <= 0 or duration > 300:
         raise RuntimeError("Generated narration has an invalid duration")
     return duration
+
+
+async def fit_narration_duration(
+    audio_path: Path,
+    scene_durations: list[float],
+) -> tuple[Path, list[float]]:
+    narration_seconds = sum(scene_durations)
+    if narration_seconds <= MAX_NARRATION_SECONDS:
+        return audio_path, scene_durations
+
+    fitted_path = audio_path.with_name(f"{audio_path.stem}-fitted{audio_path.suffix}")
+    tempo = narration_seconds / TARGET_NARRATION_SECONDS
+    await _run_process(
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(audio_path),
+        "-filter:a",
+        f"atempo={tempo:.8f}",
+        "-vn",
+        str(fitted_path),
+    )
+    fitted_seconds = await audio_duration(fitted_path)
+    if fitted_seconds > MAX_NARRATION_SECONDS:
+        raise RuntimeError("Generated narration could not be fitted to a Short")
+    scale = fitted_seconds / narration_seconds
+    return fitted_path, [duration * scale for duration in scene_durations]
 
 
 async def render_vertical_video(
@@ -231,9 +260,8 @@ async def render_vertical_video(
         path.write_bytes(content)
         image_paths.append(path)
     scene_durations = [await audio_duration(path) for path in audio_paths]
+    audio_path, scene_durations = await fit_narration_duration(audio_path, scene_durations)
     narration_seconds = sum(scene_durations)
-    if narration_seconds > 56:
-        raise RuntimeError("Generated narration has an invalid duration")
     total_seconds = narration_seconds + 4
     srt_path = directory / "captions.srt"
     srt_path.write_text(build_srt(scene_texts, scene_durations), encoding="utf-8")
@@ -455,7 +483,7 @@ async def generate_script(
     response = await client.responses.parse(
         model=settings.ai_text_model,
         instructions=(
-            "Turn the supplied sourced case overview into a 35 to 55 second YouTube Short. Write 85 to 125 "
+            "Turn the supplied sourced case overview into a 35 to 55 second YouTube Short. Write 80 to 105 "
             "spoken words in a calm documentary voice. Start with a factual hook, distinguish confirmed facts "
             "from allegations, avoid graphic or sensational wording, and invite viewers to examine the full case. "
             "Do not add facts, names, dates, or accusations beyond the overview and source catalog. Create exactly "

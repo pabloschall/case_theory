@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -11,6 +12,7 @@ from app.scheduled_reels import (
     build_srt,
     build_youtube_description,
     case_hashtags,
+    fit_narration_duration,
     music_track_for_slot,
     reel_slot,
 )
@@ -43,6 +45,32 @@ def test_scene_metadata_preserves_prompts_and_narration_timing() -> None:
     assert scenes[1]["narration_text"] == "Investigators documented the timeline."
     assert scenes[1]["start_second"] == 8
     assert scenes[1]["end_second"] == 21
+
+
+@pytest.mark.asyncio
+async def test_overlong_narration_is_fitted_to_short_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    audio_path = tmp_path / "narration.mp3"
+    audio_path.write_bytes(b"audio")
+    commands: list[tuple[str, ...]] = []
+
+    async def fake_run_process(*command: str) -> bytes:
+        commands.append(command)
+        return b""
+
+    async def fake_audio_duration(_: Any) -> float:
+        return 55.2
+
+    monkeypatch.setattr("app.scheduled_reels._run_process", fake_run_process)
+    monkeypatch.setattr("app.scheduled_reels.audio_duration", fake_audio_duration)
+
+    fitted_path, durations = await fit_narration_duration(audio_path, [20.0, 21.0, 19.0])
+
+    assert fitted_path.name == "narration-fitted.mp3"
+    assert sum(durations) == pytest.approx(55.2)
+    assert commands[0][commands[0].index("-filter:a") + 1] == "atempo=1.09090909"
 
 
 def test_music_tracks_alternate_between_schedule_slots() -> None:
