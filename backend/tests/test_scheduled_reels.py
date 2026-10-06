@@ -17,6 +17,7 @@ from app.scheduled_reels import (
     case_hashtags,
     fit_narration_duration,
     generate_scene_visuals,
+    manual_reel_slot,
     music_track_for_slot,
     reel_slot,
 )
@@ -25,6 +26,12 @@ from app.scheduled_reels import (
 def test_reel_slot_changes_at_noon_utc() -> None:
     assert reel_slot(datetime(2026, 10, 5, 11, 59, tzinfo=UTC)) == "youtube:2026-10-05:am"
     assert reel_slot(datetime(2026, 10, 5, 12, 0, tzinfo=UTC)) == "youtube:2026-10-05:pm"
+
+
+def test_manual_reel_slot_is_unique_from_scheduled_slots() -> None:
+    slot = manual_reel_slot(datetime(2026, 10, 6, 17, 32, 17, 118258, tzinfo=UTC))
+
+    assert slot == "youtube:manual:2026-10-06T17:32:17.118258Z"
 
 
 def test_build_srt_covers_the_complete_narration() -> None:

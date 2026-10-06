@@ -115,6 +115,10 @@ def reel_slot(now: datetime) -> str:
     return f"youtube:{now.date().isoformat()}:{slot}"
 
 
+def manual_reel_slot(now: datetime) -> str:
+    return f"youtube:manual:{now.strftime('%Y-%m-%dT%H:%M:%S.%fZ')}"
+
+
 def music_track_for_slot(slot: str) -> Path:
     """Alternate the bundled tracks between consecutive twelve-hour slots."""
     date_text, period = slot.rsplit(":", 2)[-2:]
@@ -612,13 +616,14 @@ async def generate_script(
     return script
 
 
-async def run(*, dry_run: bool = False, skip_upload: bool = False) -> None:
+async def run(*, dry_run: bool = False, skip_upload: bool = False, force_new: bool = False) -> None:
     settings = get_settings()
     if not settings.openai_api_key:
         raise RuntimeError("OPENAI_API_KEY is required for scheduled reels")
     if not dry_run and not skip_upload and not YouTubeUploader(settings).configured():
         raise RuntimeError("YouTube OAuth credentials are required for scheduled reel publishing")
-    slot = reel_slot(datetime.now(UTC))
+    now = datetime.now(UTC)
+    slot = manual_reel_slot(now) if force_new else reel_slot(now)
     engine = create_async_engine(settings.database_url, pool_pre_ping=True)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     item: ReelDraft | None = None
@@ -786,8 +791,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Generate and publish one scheduled YouTube Short")
     parser.add_argument("--dry-run", action="store_true", help="Generate the script without storing or rendering it")
     parser.add_argument("--skip-upload", action="store_true", help="Render and store the MP4 without uploading it")
+    parser.add_argument(
+        "--force-new",
+        action="store_true",
+        help="Use a unique manual slot instead of the current scheduled slot",
+    )
     arguments = parser.parse_args()
-    asyncio.run(run(dry_run=arguments.dry_run, skip_upload=arguments.skip_upload))
+    asyncio.run(
+        run(
+            dry_run=arguments.dry_run,
+            skip_upload=arguments.skip_upload,
+            force_new=arguments.force_new,
+        )
+    )
 
 
 if __name__ == "__main__":
