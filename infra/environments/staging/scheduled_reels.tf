@@ -1,14 +1,20 @@
 locals {
   scheduled_reel_env = {
-    ENVIRONMENT                 = "staging"
-    FRONTEND_URL                = var.frontend_origin
-    COOKIE_SECURE               = "true"
-    STORAGE_PROVIDER            = "gcs"
-    GCS_PROJECT_ID              = var.project_id
-    GCS_BUCKET                  = module.evidence_storage.bucket_name
-    GCS_SIGNING_SERVICE_ACCOUNT = module.identities.service_account_emails.worker
-    REEL_SITE_LABEL             = "case-researcher.com"
-    YOUTUBE_PRIVACY_STATUS      = "public"
+    ENVIRONMENT                  = "staging"
+    FRONTEND_URL                 = var.frontend_origin
+    COOKIE_SECURE                = "true"
+    STORAGE_PROVIDER             = "gcs"
+    GCS_PROJECT_ID               = var.project_id
+    GCS_BUCKET                   = module.evidence_storage.bucket_name
+    GCS_SIGNING_SERVICE_ACCOUNT  = module.identities.service_account_emails.worker
+    REEL_SITE_LABEL              = "case-researcher.com"
+    REEL_VISUAL_PROVIDER         = "vertex_veo"
+    REEL_VIDEO_PROJECT_ID        = var.project_id
+    REEL_VIDEO_LOCATION          = var.region
+    REEL_VIDEO_MODEL             = "veo-3.1-fast-generate-001"
+    REEL_VIDEO_DURATION_SECONDS  = "8"
+    REEL_VIDEO_FALLBACK_TO_IMAGE = "true"
+    YOUTUBE_PRIVACY_STATUS       = "public"
   }
 
   scheduled_reel_secrets = {
@@ -31,6 +37,14 @@ resource "google_service_account" "scheduled_reel_invoker" {
   project      = var.project_id
   account_id   = "${local.name_prefix}-reel-scheduler"
   display_name = "Case Theory scheduled reel invoker"
+}
+
+resource "google_project_iam_member" "scheduled_reel_vertex_user" {
+  count = var.enable_scheduled_reels ? 1 : 0
+
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${module.identities.service_account_emails.worker}"
 }
 
 resource "google_cloud_run_v2_job" "scheduled_reel" {
@@ -103,7 +117,7 @@ resource "google_cloud_run_v2_job" "scheduled_reel" {
     }
   }
 
-  depends_on = [module.project_services, module.secrets]
+  depends_on = [module.project_services, module.secrets, google_project_iam_member.scheduled_reel_vertex_user]
 }
 
 resource "google_cloud_run_v2_job_iam_member" "scheduled_reel_invoker" {

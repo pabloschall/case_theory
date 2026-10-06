@@ -9,6 +9,7 @@ locals {
 
   required_services = [
     "artifactregistry.googleapis.com",
+    "aiplatform.googleapis.com",
     "billingbudgets.googleapis.com",
     "cloudbilling.googleapis.com",
     "cloudresourcemanager.googleapis.com",

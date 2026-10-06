@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     reel_site_label: str = "case-researcher.com"
     reel_image_count: int = Field(default=3, ge=2, le=6)
     reel_music_volume: float = Field(default=0.1, ge=0, le=0.5)
+    reel_visual_provider: Literal["openai_image", "vertex_veo"] = "vertex_veo"
+    reel_video_project_id: str = ""
+    reel_video_location: str = "us-central1"
+    reel_video_model: str = "veo-3.1-fast-generate-001"
+    reel_video_duration_seconds: Literal[4, 6, 8] = 8
+    reel_video_poll_seconds: int = Field(default=15, ge=5, le=60)
+    reel_video_timeout_seconds: int = Field(default=900, ge=60, le=1800)
+    reel_video_fallback_to_image: bool = True
     youtube_client_id: str = ""
     youtube_client_secret: str = ""
     youtube_refresh_token: str = ""

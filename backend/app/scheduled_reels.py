@@ -6,8 +6,11 @@ import base64
 import json
 import re
 import tempfile
+import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal, cast
 
 import httpx
 import structlog
@@ -35,6 +38,16 @@ MUSIC_TRACKS = (
     Path(__file__).resolve().parent / "reels" / "assets" / "landing_2.mp3",
 )
 HASHTAG_STOP_WORDS = {"a", "an", "and", "case", "criminal", "killing", "of", "summary", "the"}
+VEO_NEGATIVE_PROMPT = (
+    "readable text, captions, logos, watermarks, graphic violence, blood, weapons in use, identifiable real people, "
+    "distorted faces, extra limbs, surveillance overlays, generic police lights"
+)
+
+
+@dataclass(frozen=True)
+class SceneVisual:
+    content: bytes
+    kind: Literal["image", "video"]
 
 
 class GeneratedReelScene(BaseModel):
@@ -92,7 +105,7 @@ def build_youtube_description(
         f"{caption}\n\n"
         f"Explore the full case at https://{site_label}\n\n"
         f"Sources:\n{source_lines}\n\n"
-        "This video uses AI-generated narration and background imagery.\n\n"
+        "This video uses AI-generated narration and background visuals.\n\n"
         f"{hashtag_line}"
     )
 
@@ -222,7 +235,7 @@ async def fit_narration_duration(
 
 async def render_vertical_video(
     directory: Path,
-    images: list[bytes],
+    visuals: list[SceneVisual],
     audio_segments: list[bytes],
     scene_texts: list[str],
     scene_prompts: list[str],
@@ -231,9 +244,9 @@ async def render_vertical_video(
     music_path: Path,
     music_volume: float,
 ) -> tuple[bytes, int, list[dict[str, object]]]:
-    scene_count = len(images)
+    scene_count = len(visuals)
     if not (scene_count == len(audio_segments) == len(scene_texts) == len(scene_prompts) == len(scene_narrations)):
-        raise ValueError("Every reel scene must have an image, narration, caption, and prompt")
+        raise ValueError("Every reel scene must have a visual, narration, caption, and prompt")
     if not await asyncio.to_thread(music_path.is_file):
         raise RuntimeError(f"Reel music track is missing: {music_path.name}")
     audio_path = directory / "narration.mp3"
@@ -254,11 +267,12 @@ async def render_vertical_video(
         "[outa]",
         str(audio_path),
     )
-    image_paths = []
-    for index, content in enumerate(images):
-        path = directory / f"scene-{index}.webp"
-        path.write_bytes(content)
-        image_paths.append(path)
+    visual_paths: list[tuple[Path, Literal["image", "video"]]] = []
+    for index, visual in enumerate(visuals):
+        extension = "mp4" if visual.kind == "video" else "webp"
+        path = directory / f"scene-{index}.{extension}"
+        path.write_bytes(visual.content)
+        visual_paths.append((path, visual.kind))
     scene_durations = [await audio_duration(path) for path in audio_paths]
     audio_path, scene_durations = await fit_narration_duration(audio_path, scene_durations)
     narration_seconds = sum(scene_durations)
@@ -268,8 +282,11 @@ async def render_vertical_video(
     output_path = directory / "reel.mp4"
 
     inputs: list[str] = []
-    for path, duration in zip(image_paths, scene_durations, strict=True):
-        inputs.extend(["-loop", "1", "-t", f"{duration:.3f}", "-i", str(path)])
+    for (path, kind), duration in zip(visual_paths, scene_durations, strict=True):
+        if kind == "video":
+            inputs.extend(["-stream_loop", "-1", "-i", str(path)])
+        else:
+            inputs.extend(["-loop", "1", "-t", f"{duration:.3f}", "-i", str(path)])
     inputs.extend(
         [
             "-f",
@@ -288,13 +305,14 @@ async def render_vertical_video(
     )
     filters = []
     video_labels = []
-    for index in range(len(image_paths)):
+    for index, duration in enumerate(scene_durations):
         label = f"v{index}"
         filters.append(
-            f"[{index}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=30[{label}]"
+            f"[{index}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
+            f"setsar=1,fps=30,trim=duration={duration:.3f},setpts=PTS-STARTPTS[{label}]"
         )
         video_labels.append(f"[{label}]")
-    end_index = len(image_paths)
+    end_index = len(visual_paths)
     filters.append(
         f"[{end_index}:v]drawtext=fontfile={FONT_PATH}:text='{site_label}':"
         "fontcolor=white:fontsize=62:x=(w-text_w)/2:y=(h-text_h)/2,"
@@ -311,7 +329,7 @@ async def render_vertical_video(
         f"drawtext=fontfile={FONT_PATH}:text='AI-generated narration':fontcolor=white@0.72:"
         "fontsize=20:x=36:y=36[outv]"
     )
-    narration_index = len(image_paths) + 1
+    narration_index = len(visual_paths) + 1
     music_index = narration_index + 1
     fade_start = max(0, total_seconds - 2)
     filters.extend(
@@ -362,6 +380,94 @@ async def render_vertical_video(
         }
     )
     return output_path.read_bytes(), round(total_seconds), scenes
+
+
+class VertexVeoGenerator:
+    def __init__(self, settings: Settings) -> None:
+        from google import genai
+        from google.genai import types
+
+        project_id = settings.reel_video_project_id or settings.gcs_project_id
+        if not project_id:
+            raise RuntimeError("REEL_VIDEO_PROJECT_ID or GCS_PROJECT_ID is required for Vertex Veo")
+        self.settings = settings
+        self.types = types
+        self.client = genai.Client(
+            vertexai=True,
+            project=project_id,
+            location=settings.reel_video_location,
+            http_options=types.HttpOptions(api_version="v1"),
+        )
+
+    def _generate(self, prompt: str) -> bytes:
+        operation = self.client.models.generate_videos(
+            model=self.settings.reel_video_model,
+            source=self.types.GenerateVideosSource(prompt=prompt),
+            config=self.types.GenerateVideosConfig(
+                aspect_ratio="9:16",
+                duration_seconds=self.settings.reel_video_duration_seconds,
+                generate_audio=False,
+                number_of_videos=1,
+                person_generation="dont_allow",
+                resolution="720p",
+                negative_prompt=VEO_NEGATIVE_PROMPT,
+            ),
+        )
+        deadline = time.monotonic() + self.settings.reel_video_timeout_seconds
+        while not operation.done:
+            if time.monotonic() >= deadline:
+                raise RuntimeError("Vertex Veo video generation timed out")
+            time.sleep(self.settings.reel_video_poll_seconds)
+            operation = self.client.operations.get(operation)
+        result = operation.result
+        generated = result.generated_videos if result is not None else None
+        video = generated[0].video if generated else None
+        video_bytes = video.video_bytes if video is not None else None
+        if not video_bytes:
+            reasons = result.rai_media_filtered_reasons if result is not None else None
+            detail = f": {'; '.join(reasons)}" if reasons else ""
+            raise RuntimeError(f"Vertex Veo returned no video{detail}")
+        return cast(bytes, video_bytes)
+
+    async def generate(self, prompt: str) -> bytes:
+        return await asyncio.to_thread(self._generate, prompt)
+
+
+async def generate_image_visual(client: AsyncOpenAI, settings: Settings, prompt: str) -> SceneVisual:
+    result = await client.images.generate(
+        model=settings.ai_image_model,
+        prompt=prompt,
+        size="1024x1536",
+        quality="low",
+        output_format="webp",
+        n=1,
+    )
+    encoded = result.data[0].b64_json if result.data else None
+    if not encoded:
+        raise RuntimeError("OpenAI returned no reel background image")
+    return SceneVisual(base64.b64decode(encoded), "image")
+
+
+async def generate_scene_visuals(
+    client: AsyncOpenAI,
+    settings: Settings,
+    prompts: list[str],
+) -> list[SceneVisual]:
+    if settings.reel_visual_provider == "openai_image":
+        return [await generate_image_visual(client, settings, prompt) for prompt in prompts]
+
+    generator = VertexVeoGenerator(settings)
+    visuals: list[SceneVisual] = []
+    for scene_number, prompt in enumerate(prompts, start=1):
+        try:
+            content = await generator.generate(prompt)
+            visuals.append(SceneVisual(content, "video"))
+        except Exception:
+            if not settings.reel_video_fallback_to_image:
+                raise
+            logger.exception("scheduled_reel_veo_fallback", scene_number=scene_number)
+            visuals.append(await generate_image_visual(client, settings, prompt))
+    return visuals
 
 
 class YouTubeUploader:
@@ -488,11 +594,12 @@ async def generate_script(
             "from allegations, avoid graphic or sensational wording, and invite viewers to examine the full case. "
             "Do not add facts, names, dates, or accusations beyond the overview and source catalog. Create exactly "
             f"{settings.reel_image_count} consecutive scenes. Put the exact spoken words for each scene in "
-            "narration_text, and make the top-level narration those scene narrations joined in order. Every image "
+            "narration_text, and make the top-level narration those scene narrations joined in order. Every visual "
             "prompt must visibly illustrate the specific fact, place, time period, or object discussed in that "
-            "scene's narration_text; avoid generic crime imagery. Prompts must be portrait, cinematic, non-graphic, "
-            "contain no readable text or logos, and must not recreate real people or imply that an AI-generated "
-            "person is a real participant. The caption must disclose AI-generated narration."
+            "scene's narration_text; avoid generic crime imagery. Each prompt must describe one continuous portrait "
+            "documentary shot with specific subject motion and restrained camera movement. Prompts must be cinematic, "
+            "non-graphic, contain no readable text or logos, and must not recreate real people or imply that an "
+            "AI-generated person is a real participant. The caption must disclose AI-generated narration."
         ),
         input=f"CASE\n{case.title}\n\nOVERVIEW\n{summary.body}\n\nSOURCES\n{catalog}",
         text_format=GeneratedReelScript,
@@ -598,20 +705,11 @@ async def run(*, dry_run: bool = False, skip_upload: bool = False) -> None:
             client = AsyncOpenAI(api_key=settings.openai_api_key)
 
             try:
-                images = []
-                for scene in script.scenes:
-                    result = await client.images.generate(
-                        model=settings.ai_image_model,
-                        prompt=scene.image_prompt,
-                        size="1024x1536",
-                        quality="low",
-                        output_format="webp",
-                        n=1,
-                    )
-                    encoded = result.data[0].b64_json if result.data else None
-                    if not encoded:
-                        raise RuntimeError("OpenAI returned no reel background image")
-                    images.append(base64.b64decode(encoded))
+                visuals = await generate_scene_visuals(
+                    client,
+                    settings,
+                    [scene.image_prompt for scene in script.scenes],
+                )
                 speech_segments = []
                 for scene in script.scenes:
                     speech = await client.audio.speech.create(
@@ -629,7 +727,7 @@ async def run(*, dry_run: bool = False, skip_upload: bool = False) -> None:
                 with tempfile.TemporaryDirectory(prefix="case-theory-reel-") as temp_name:
                     video, duration, scenes = await render_vertical_video(
                         Path(temp_name),
-                        images,
+                        visuals,
                         speech_segments,
                         [scene.on_screen_text for scene in script.scenes],
                         [scene.image_prompt for scene in script.scenes],

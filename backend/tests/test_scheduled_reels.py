@@ -1,18 +1,22 @@
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 import httpx
 import pytest
 
 from app.config.settings import Settings
 from app.scheduled_reels import (
+    SceneVisual,
+    VertexVeoGenerator,
     YouTubeUploader,
     build_scene_metadata,
     build_srt,
     build_youtube_description,
     case_hashtags,
     fit_narration_duration,
+    generate_scene_visuals,
     music_track_for_slot,
     reel_slot,
 )
@@ -98,13 +102,62 @@ def test_youtube_description_includes_sources_disclosure_site_and_hashtags() -> 
 
     assert "https://case-researcher.com" in description
     assert "https://source.example/one" in description
-    assert "AI-generated narration and background imagery" in description
+    assert "AI-generated narration and background visuals" in description
     assert hashtags == ["#GabriellePetito", "#TetonCountyWyoming", "#CaseResearcher"]
     assert description.endswith("#GabriellePetito #TetonCountyWyoming #CaseResearcher")
 
 
 def test_case_hashtags_omit_duplicate_location() -> None:
     assert case_hashtags("Phoenix case", "Phoenix") == ["#Phoenix", "#CaseResearcher"]
+
+
+def test_vertex_veo_generator_requests_a_silent_portrait_clip() -> None:
+    calls: list[dict[str, Any]] = []
+
+    class FakeModels:
+        def generate_videos(self, **kwargs: Any) -> SimpleNamespace:
+            calls.append(kwargs)
+            video = SimpleNamespace(video_bytes=b"veo-video")
+            result = SimpleNamespace(generated_videos=[SimpleNamespace(video=video)])
+            return SimpleNamespace(done=True, result=result)
+
+    class FakeTypes:
+        GenerateVideosSource = staticmethod(lambda **kwargs: kwargs)
+        GenerateVideosConfig = staticmethod(lambda **kwargs: kwargs)
+
+    generator = object.__new__(VertexVeoGenerator)
+    generator.settings = Settings(_env_file=None, reel_video_project_id="case-theory")
+    generator.types = FakeTypes
+    generator.client = SimpleNamespace(models=FakeModels())
+
+    assert generator._generate("A documented desert road at dusk") == b"veo-video"
+    assert calls[0]["source"] == {"prompt": "A documented desert road at dusk"}
+    assert calls[0]["config"]["aspect_ratio"] == "9:16"
+    assert calls[0]["config"]["duration_seconds"] == 8
+    assert calls[0]["config"]["generate_audio"] is False
+
+
+@pytest.mark.asyncio
+async def test_scene_visuals_use_vertex_veo(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeVeoGenerator:
+        def __init__(self, _: Settings) -> None:
+            pass
+
+        async def generate(self, prompt: str) -> bytes:
+            return f"video:{prompt}".encode()
+
+    monkeypatch.setattr("app.scheduled_reels.VertexVeoGenerator", FakeVeoGenerator)
+    settings = Settings(_env_file=None, reel_visual_provider="vertex_veo")
+    visuals = await generate_scene_visuals(
+        cast(Any, object()),
+        settings,
+        ["scene one", "scene two"],
+    )
+
+    assert visuals == [
+        SceneVisual(b"video:scene one", "video"),
+        SceneVisual(b"video:scene two", "video"),
+    ]
 
 
 class FakeResponse:
