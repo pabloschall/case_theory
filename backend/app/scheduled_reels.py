@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import base64
+import hashlib
 import json
 import re
 import tempfile
@@ -122,7 +123,10 @@ def manual_reel_slot(now: datetime) -> str:
 def music_track_for_slot(slot: str) -> Path:
     """Alternate the bundled tracks between consecutive twelve-hour slots."""
     date_text, period = slot.rsplit(":", 2)[-2:]
-    slot_number = datetime.fromisoformat(date_text).toordinal() * 2 + (period == "pm")
+    if period in {"am", "pm"}:
+        slot_number = datetime.fromisoformat(date_text).toordinal() * 2 + (period == "pm")
+    else:
+        slot_number = int.from_bytes(hashlib.sha256(slot.encode()).digest()[:8])
     return MUSIC_TRACKS[slot_number % len(MUSIC_TRACKS)]
 
 

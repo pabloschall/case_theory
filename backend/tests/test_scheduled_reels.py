@@ -95,6 +95,13 @@ def test_music_tracks_alternate_between_schedule_slots() -> None:
     assert evening.is_file()
 
 
+def test_music_track_supports_manual_slots() -> None:
+    slot = "youtube:manual:2026-10-06T17:32:17.118258Z"
+
+    assert music_track_for_slot(slot) == music_track_for_slot(slot)
+    assert music_track_for_slot(slot).is_file()
+
+
 def test_youtube_description_includes_sources_disclosure_site_and_hashtags() -> None:
     hashtags = case_hashtags(
         'Killing of Gabrielle ("Gabby") Petito — case summary',
