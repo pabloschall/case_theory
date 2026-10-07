@@ -5,11 +5,13 @@ import uuid
 from typing import Any
 
 import httpx
+import structlog
 
 from app.common.errors import AppError
 from app.config.settings import Settings
 
 CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform"
+log = structlog.get_logger()
 
 
 def _access_token() -> str:
@@ -52,6 +54,18 @@ async def trigger_reel_job(settings: Settings, case_id: uuid.UUID) -> str:
         if not isinstance(operation_name, str) or not operation_name:
             raise RuntimeError("Cloud Run returned no operation name")
         return operation_name
+    except httpx.HTTPStatusError as exc:
+        log.error(
+            "reel_job_start_rejected",
+            status_code=exc.response.status_code,
+            provider_response=exc.response.text[:2000],
+            case_id=str(case_id),
+        )
+        raise AppError(
+            502,
+            "reel_job_start_failed",
+            "The YouTube Short job could not be started",
+        ) from exc
     except AppError:
         raise
     except Exception as exc:

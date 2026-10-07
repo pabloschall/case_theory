@@ -136,7 +136,7 @@ resource "google_cloud_run_v2_job_iam_member" "scheduled_reel_api_invoker" {
   project  = var.project_id
   location = google_cloud_run_v2_job.scheduled_reel[0].location
   name     = google_cloud_run_v2_job.scheduled_reel[0].name
-  role     = "roles/run.invoker"
+  role     = "roles/run.jobsExecutorWithOverrides"
   member   = "serviceAccount:${module.identities.service_account_emails.api}"
 }
 
