@@ -151,6 +151,16 @@ def test_vertex_veo_generator_requests_a_silent_portrait_clip() -> None:
     assert calls[0]["config"]["generate_audio"] is False
 
 
+def test_reel_video_duration_parses_cloud_run_environment_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("REEL_VIDEO_DURATION_SECONDS", "8")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.reel_video_duration_seconds == 8
+
+
 @pytest.mark.asyncio
 async def test_scene_visuals_use_vertex_veo(monkeypatch: pytest.MonkeyPatch) -> None:
     class FakeVeoGenerator:
