@@ -6,8 +6,38 @@ from sqlalchemy import select
 
 from app.db.session import SessionFactory
 from app.reels.models import ReelDraft
+from app.reels.schemas import ReelDraftCreate
 
 pytestmark = pytest.mark.usefixtures("paid_signups")
+
+
+def test_reel_schema_accepts_three_minute_short_timeline() -> None:
+    reel = ReelDraftCreate.model_validate(
+        {
+            "title": "A documented case",
+            "hook": "The record leaves an unresolved question.",
+            "narration": "A sufficiently detailed narration for the documented case timeline.",
+            "caption": "Review the documented sources.",
+            "duration_seconds": 70,
+            "scenes": [
+                {
+                    "start_second": 0,
+                    "end_second": 55,
+                    "on_screen_text": "The documented case",
+                    "visual_direction": "Show the sourced case timeline.",
+                },
+                {
+                    "start_second": 55,
+                    "end_second": 70,
+                    "on_screen_text": "Explore and collaborate",
+                    "visual_direction": "Show the app and final brand card.",
+                },
+            ],
+            "sources": [{"title": "Official source", "url": "https://example.gov/case"}],
+        }
+    )
+
+    assert reel.duration_seconds == 70
 
 
 async def test_reel_draft_create_list_and_approve(client: AsyncClient) -> None:

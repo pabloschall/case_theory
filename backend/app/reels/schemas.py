@@ -33,7 +33,7 @@ class ReelDraftCreate(BaseModel):
     hook: str = Field(min_length=3, max_length=280)
     narration: str = Field(min_length=20, max_length=5000)
     caption: str = Field(min_length=1, max_length=2200)
-    duration_seconds: int = Field(ge=15, le=60)
+    duration_seconds: int = Field(ge=15, le=180)
     scenes: list[ReelScene] = Field(min_length=2, max_length=12)
     sources: list[ReelSource] = Field(min_length=1, max_length=12)
 

@@ -39,6 +39,7 @@ MUSIC_TRACKS = (
     Path(__file__).resolve().parent / "reels" / "assets" / "landing-1.mp3",
     Path(__file__).resolve().parent / "reels" / "assets" / "landing_2.mp3",
 )
+ADVERTISING_CLIP = Path(__file__).resolve().parent / "reels" / "assets" / "advertising.mp4"
 HASHTAG_STOP_WORDS = {"a", "an", "and", "case", "criminal", "killing", "of", "summary", "the"}
 VEO_NEGATIVE_PROMPT = (
     "readable text, captions, logos, watermarks, graphic violence, blood, weapons in use, identifiable real people, "
@@ -198,7 +199,7 @@ async def _run_process(*command: str) -> bytes:
     return stdout
 
 
-async def audio_duration(path: Path) -> float:
+async def media_duration(path: Path) -> float:
     output = await _run_process(
         "ffprobe",
         "-v",
@@ -211,8 +212,12 @@ async def audio_duration(path: Path) -> float:
     )
     duration = float(output.decode().strip())
     if duration <= 0 or duration > 300:
-        raise RuntimeError("Generated narration has an invalid duration")
+        raise RuntimeError(f"Media has an invalid duration: {path.name}")
     return duration
+
+
+async def audio_duration(path: Path) -> float:
+    return await media_duration(path)
 
 
 async def fit_narration_duration(
@@ -252,12 +257,15 @@ async def render_vertical_video(
     site_label: str,
     music_path: Path,
     music_volume: float,
+    advertising_path: Path = ADVERTISING_CLIP,
 ) -> tuple[bytes, int, list[dict[str, object]]]:
     scene_count = len(visuals)
     if not (scene_count == len(audio_segments) == len(scene_texts) == len(scene_prompts) == len(scene_narrations)):
         raise ValueError("Every reel scene must have a visual, narration, caption, and prompt")
     if not await asyncio.to_thread(music_path.is_file):
         raise RuntimeError(f"Reel music track is missing: {music_path.name}")
+    if not await asyncio.to_thread(advertising_path.is_file):
+        raise RuntimeError(f"Reel advertising clip is missing: {advertising_path.name}")
     audio_path = directory / "narration.mp3"
     audio_paths = []
     for index, content in enumerate(audio_segments):
@@ -285,7 +293,9 @@ async def render_vertical_video(
     scene_durations = [await audio_duration(path) for path in audio_paths]
     audio_path, scene_durations = await fit_narration_duration(audio_path, scene_durations)
     narration_seconds = sum(scene_durations)
-    total_seconds = narration_seconds + 4
+    advertising_seconds = await media_duration(advertising_path)
+    final_card_seconds = 4
+    total_seconds = narration_seconds + advertising_seconds + final_card_seconds
     srt_path = directory / "captions.srt"
     srt_path.write_text(build_srt(scene_texts, scene_durations), encoding="utf-8")
     output_path = directory / "reel.mp4"
@@ -298,10 +308,12 @@ async def render_vertical_video(
             inputs.extend(["-loop", "1", "-t", f"{duration:.3f}", "-i", str(path)])
     inputs.extend(
         [
+            "-i",
+            str(advertising_path),
             "-f",
             "lavfi",
             "-t",
-            "4",
+            str(final_card_seconds),
             "-i",
             "color=c=0x0b1117:s=1080x1920:r=30",
             "-i",
@@ -321,12 +333,22 @@ async def render_vertical_video(
             f"setsar=1,fps=30,trim=duration={duration:.3f},setpts=PTS-STARTPTS[{label}]"
         )
         video_labels.append(f"[{label}]")
-    end_index = len(visual_paths)
+    advertising_index = len(visual_paths)
     filters.append(
-        f"[{end_index}:v]drawtext=fontfile={FONT_PATH}:text='{site_label}':"
-        "fontcolor=white:fontsize=62:x=(w-text_w)/2:y=(h-text_h)/2,"
+        f"[{advertising_index}:v]scale=1080:1920:force_original_aspect_ratio=decrease,"
+        "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0x0b1117,"
+        f"setsar=1,fps=30,trim=duration={advertising_seconds:.3f},setpts=PTS-STARTPTS[vadvertising]"
+    )
+    video_labels.append("[vadvertising]")
+    end_index = advertising_index + 1
+    public_site_label = site_label if site_label.startswith("www.") else f"www.{site_label}"
+    filters.append(
+        f"[{end_index}:v]drawtext=fontfile={FONT_PATH}:text='{public_site_label}':"
+        "fontcolor=white:fontsize=58:x=(w-text_w)/2:y=(h-text_h)/2+75,"
         "drawtext=fontfile=" + FONT_PATH + ":text='Explore the full case':"
-        "fontcolor=0xd5a64a:fontsize=34:x=(w-text_w)/2:y=(h-text_h)/2-90[vend]"
+        "fontcolor=0xd5a64a:fontsize=42:x=(w-text_w)/2:y=(h-text_h)/2-125,"
+        "drawtext=fontfile=" + FONT_PATH + ":text='and collaborate with others':"
+        "fontcolor=0xd5a64a:fontsize=42:x=(w-text_w)/2:y=(h-text_h)/2-65[vend]"
     )
     video_labels.append("[vend]")
     filters.append("".join(video_labels) + f"concat=n={len(video_labels)}:v=1:a=0[sequence]")
@@ -336,14 +358,14 @@ async def render_vertical_video(
         "PrimaryColour=&H00FFFFFF,OutlineColour=&HAA000000,BorderStyle=3,Outline=1,"
         "Shadow=0,Alignment=2,MarginV=150',"
         f"drawtext=fontfile={FONT_PATH}:text='AI-generated narration':fontcolor=white@0.72:"
-        "fontsize=20:x=36:y=36[outv]"
+        f"fontsize=20:x=36:y=36:enable='lt(t,{narration_seconds:.3f})'[outv]"
     )
-    narration_index = len(visual_paths) + 1
+    narration_index = len(visual_paths) + 2
     music_index = narration_index + 1
     fade_start = max(0, total_seconds - 2)
     filters.extend(
         [
-            f"[{narration_index}:a]apad=pad_dur=4[narration]",
+            f"[{narration_index}:a]apad=pad_dur={advertising_seconds + final_card_seconds:.3f}[narration]",
             f"[{music_index}:a]atrim=0:{total_seconds:.3f},asetpts=PTS-STARTPTS,"
             f"volume={music_volume:.3f},afade=t=out:st={fade_start:.3f}:d=2[music]",
             "[narration][music]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0[outa]",
@@ -382,8 +404,17 @@ async def render_vertical_video(
     scenes.append(
         {
             "start_second": round(narration_seconds),
+            "end_second": round(narration_seconds + advertising_seconds),
+            "on_screen_text": "See Case Researcher in action",
+            "visual_direction": "Case Researcher app advertising clip",
+            "narration_text": "",
+        }
+    )
+    scenes.append(
+        {
+            "start_second": round(narration_seconds + advertising_seconds),
             "end_second": round(total_seconds),
-            "on_screen_text": f"Explore the full case at {site_label}",
+            "on_screen_text": f"Explore the full case and collaborate with others at {public_site_label}",
             "visual_direction": "Brand end card",
             "narration_text": "",
         }

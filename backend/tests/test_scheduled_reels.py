@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -20,6 +21,7 @@ from app.scheduled_reels import (
     manual_reel_slot,
     music_track_for_slot,
     reel_slot,
+    render_vertical_video,
 )
 
 
@@ -159,6 +161,61 @@ def test_reel_video_duration_parses_cloud_run_environment_value(
     settings = Settings(_env_file=None)
 
     assert settings.reel_video_duration_seconds == 8
+
+
+@pytest.mark.asyncio
+async def test_render_appends_advertising_clip_and_collaboration_card(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    commands: list[tuple[str, ...]] = []
+    music_path = tmp_path / "music.mp3"
+    advertising_path = tmp_path / "advertising.mp4"
+    music_path.write_bytes(b"music")
+    advertising_path.write_bytes(b"advertising")
+
+    async def fake_run_process(*command: str) -> bytes:
+        commands.append(command)
+        if command[-1].endswith("reel.mp4"):
+            await asyncio.to_thread(Path(command[-1]).write_bytes, b"rendered-video")
+        return b""
+
+    async def fake_audio_duration(_: Path) -> float:
+        return 10.0
+
+    async def fake_media_duration(path: Path) -> float:
+        assert path == advertising_path
+        return 6.0
+
+    monkeypatch.setattr("app.scheduled_reels._run_process", fake_run_process)
+    monkeypatch.setattr("app.scheduled_reels.audio_duration", fake_audio_duration)
+    monkeypatch.setattr("app.scheduled_reels.media_duration", fake_media_duration)
+
+    video, duration, scenes = await render_vertical_video(
+        tmp_path,
+        [SceneVisual(b"image", "image")],
+        [b"narration"],
+        ["The documented case"],
+        ["A specific case location"],
+        ["The documented narration."],
+        "case-researcher.com",
+        music_path,
+        0.1,
+        advertising_path,
+    )
+
+    final_command = commands[-1]
+    filter_graph = final_command[final_command.index("-filter_complex") + 1]
+    assert video == b"rendered-video"
+    assert duration == 20
+    assert str(advertising_path) in final_command
+    assert "[vadvertising][vend]concat=n=3" in filter_graph
+    assert "Explore the full case" in filter_graph
+    assert "and collaborate with others" in filter_graph
+    assert "www.case-researcher.com" in filter_graph
+    assert scenes[-2]["start_second"] == 10
+    assert scenes[-2]["end_second"] == 16
+    assert scenes[-1]["end_second"] == duration
 
 
 @pytest.mark.asyncio
