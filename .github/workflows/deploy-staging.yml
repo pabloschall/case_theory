@@ -160,6 +160,9 @@ jobs:
           GCS_BUCKET: "$EVIDENCE_BUCKET"
           GCS_PROJECT_ID: "$PROJECT_ID"
           GCS_SIGNING_SERVICE_ACCOUNT: "$API_RUNTIME_SERVICE_ACCOUNT"
+          REEL_JOB_PROJECT_ID: "$PROJECT_ID"
+          REEL_JOB_LOCATION: "$REGION"
+          REEL_JOB_NAME: "case-theory-stg-youtube-short"
           EOF
 
       - name: Deploy API revision

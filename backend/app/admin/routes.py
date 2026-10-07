@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admin.schemas import (
     AdminCasePage,
+    AdminReelJobRead,
     AdminTierUpdate,
     AdminUserCreate,
     AdminUserPage,
@@ -13,7 +14,9 @@ from app.admin.schemas import (
 )
 from app.admin.service import AdminService
 from app.auth.dependencies import get_current_user, require_admin, verify_csrf
+from app.config.settings import Settings, get_settings
 from app.db.session import get_db
+from app.reels.jobs import trigger_reel_job
 from app.storage.base import StorageProvider
 from app.storage.provider import get_storage_provider
 from app.users.models import User
@@ -121,3 +124,22 @@ async def delete_case(
                 exc_info=True,
             )
     return {"message": "Case deleted"}
+
+
+@router.post(
+    "/cases/{case_id}/youtube-short",
+    response_model=AdminReelJobRead,
+    status_code=202,
+    dependencies=[Depends(verify_csrf)],
+)
+async def create_case_youtube_short(
+    case_id: uuid.UUID,
+    actor: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> AdminReelJobRead:
+    service = AdminService(db)
+    case = await service.require_reel_eligible_case(case_id)
+    operation_name = await trigger_reel_job(settings, case_id)
+    await service.record_reel_request(case, actor, operation_name)
+    return AdminReelJobRead(operation_name=operation_name)

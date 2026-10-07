@@ -1,11 +1,12 @@
 import uuid
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
 from app.admin.models import AuditLog
 from app.auth.security import hash_password
-from app.cases.models import Case
+from app.cases.models import Case, CaseSummary, Source
 from app.db.session import SessionFactory
 from app.subscriptions.models import SubscriptionPlan, UserSubscription
 from app.users.models import User, UserProfile
@@ -13,6 +14,7 @@ from app.users.models import User, UserProfile
 
 async def test_admin_can_search_users_change_tiers_and_delete_cases(
     client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     token = (await client.get("/api/v1/auth/csrf")).json()["csrf_token"]
     registered = await client.post(
@@ -64,6 +66,24 @@ async def test_admin_can_search_users_change_tiers_and_delete_cases(
             created_by_user_id=target.id,
         )
         db.add(case)
+        await db.flush()
+        db.add(
+            CaseSummary(
+                case_id=case.id,
+                body="A sourced overview suitable for a documentary Short.",
+                source="ai",
+                is_current=True,
+            )
+        )
+        db.add(
+            Source(
+                case_id=case.id,
+                url="https://example.com/source",
+                canonical_url="https://example.com/source",
+                title="Primary source",
+                position=1,
+            )
+        )
         await db.commit()
         admin_id = admin.id
         target_id = target.id
@@ -138,6 +158,21 @@ async def test_admin_can_search_users_change_tiers_and_delete_cases(
     assert cases.json()["total"] == 1
     assert cases.json()["items"][0]["owner_email"] == "case-owner@example.com"
 
+    async def fake_trigger_reel_job(_: object, selected_case_id: uuid.UUID) -> str:
+        assert selected_case_id == case_id
+        return "projects/case-theory/locations/us-central1/operations/reel-operation"
+
+    monkeypatch.setattr("app.admin.routes.trigger_reel_job", fake_trigger_reel_job)
+    queued_short = await client.post(
+        f"/api/v1/admin/cases/{case_id}/youtube-short",
+        headers={"X-CSRF-Token": token},
+    )
+    assert queued_short.status_code == 202
+    assert queued_short.json() == {
+        "operation_name": "projects/case-theory/locations/us-central1/operations/reel-operation",
+        "status": "queued",
+    }
+
     deleted = await client.delete(
         f"/api/v1/admin/cases/{case_id}", headers={"X-CSRF-Token": token}
     )
@@ -156,4 +191,5 @@ async def test_admin_can_search_users_change_tiers_and_delete_cases(
             "user.deleted",
             "user.tier_changed",
             "case.deleted",
+            "case.youtube_short_requested",
         }

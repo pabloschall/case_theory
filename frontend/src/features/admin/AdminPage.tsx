@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight, ExternalLink, Flag, Search, Shield, Sparkles, Trash2, UserCog, UserPlus, Users, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ExternalLink, Flag, Search, Shield, Sparkles, Trash2, UserCog, UserPlus, Users, X, Youtube } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link } from 'react-router'
@@ -116,6 +116,7 @@ export function AdminUsersPage() {
 export function AdminCasesPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [queuedCaseId, setQueuedCaseId] = useState<string | null>(null)
   const query = useDebouncedValue(search)
   const cases = useQuery({ queryKey: ['admin', 'cases', query, page], queryFn: () => api.adminCases(query, page) })
   const deletion = useMutation({
@@ -127,16 +128,29 @@ export function AdminCasesPage() {
       ])
     },
   })
+  const shortCreation = useMutation({
+    mutationFn: api.createCaseYoutubeShort,
+    onSuccess: (_, caseId) => setQueuedCaseId(caseId),
+  })
 
   const remove = (item: AdminCaseListItem) => {
     if (window.confirm(`Permanently delete “${item.title}” and all of its case data? This cannot be undone.`)) deletion.mutate(item.id)
+  }
+
+  const createShort = (item: AdminCaseListItem) => {
+    if (window.confirm(`Create and publicly upload a YouTube Short for “${item.title}”? Generation usually takes several minutes.`)) {
+      setQueuedCaseId(null)
+      shortCreation.mutate(item.id)
+    }
   }
 
   return <div>
     <AdminHeading title="Cases" description="Search by owner email, username, display name, or case title. Open or permanently delete a case."/>
     <SearchField value={search} onChange={(value) => { setSearch(value); setPage(1) }} placeholder="Search by case owner or title"/>
     {deletion.error && <ErrorBanner error={deletion.error} fallback="Could not delete the case"/>}
-    {cases.isLoading ? <Loading/> : cases.data?.items.length ? <div className="mt-6 space-y-3">{cases.data.items.map((item) => <CaseRow key={item.id} item={item} deleting={deletion.isPending && deletion.variables === item.id} onDelete={() => remove(item)}/>)}</div> : <Empty text="No cases match this search."/>}
+    {shortCreation.error && <ErrorBanner error={shortCreation.error} fallback="Could not start YouTube Short generation"/>}
+    {queuedCaseId && <p role="status" className="success-banner mt-6">YouTube Short generation started. The published video will appear on the case when processing finishes.</p>}
+    {cases.isLoading ? <Loading/> : cases.data?.items.length ? <div className="mt-6 space-y-3">{cases.data.items.map((item) => <CaseRow key={item.id} item={item} deleting={deletion.isPending && deletion.variables === item.id} generating={shortCreation.isPending && shortCreation.variables === item.id} queued={queuedCaseId === item.id} onGenerate={() => createShort(item)} onDelete={() => remove(item)}/>)}</div> : <Empty text="No cases match this search."/>}
     {cases.data && <Pagination page={cases.data.page} totalPages={cases.data.total_pages} hasPrevious={cases.data.has_previous} hasNext={cases.data.has_next} onPage={setPage}/>} 
   </div>
 }
@@ -153,12 +167,13 @@ function SearchField({ value, onChange, placeholder }: { value: string; onChange
   return <label className="relative mt-7 block max-w-xl"><Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={17}/><span className="sr-only">{placeholder}</span><input value={value} onChange={(event) => onChange(event.target.value)} className="field pl-11" placeholder={placeholder}/></label>
 }
 
-function CaseRow({ item, deleting, onDelete }: { item: AdminCaseListItem; deleting: boolean; onDelete: () => void }) {
+function CaseRow({ item, deleting, generating, queued, onGenerate, onDelete }: { item: AdminCaseListItem; deleting: boolean; generating: boolean; queued: boolean; onGenerate: () => void; onDelete: () => void }) {
+  const reelReady = item.privacy === 'public' && item.status === 'active' && item.ai_research_status === 'complete'
   return <article className="card overflow-hidden sm:flex sm:min-h-36">
     <img src={item.cover_image_url || '/case-banner.png'} alt="" className="h-36 w-full object-cover sm:h-auto sm:w-52"/>
     <div className="flex min-w-0 flex-1 flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0"><div className="flex flex-wrap gap-2"><StatusBadge>{item.status}</StatusBadge><StatusBadge>{item.privacy}</StatusBadge><StatusBadge tone="ai">{item.ai_research_status.replaceAll('_', ' ')}</StatusBadge></div><h2 className="section-title mt-3 truncate">{item.title}</h2><p className="mt-2 truncate text-xs text-secondary">Owned by <span className="font-semibold text-primary">{item.owner_display_name}</span> · {item.owner_email}</p><p className="metadata mt-2 text-[10px]">@{item.owner_username} · Created {new Date(item.created_at).toLocaleDateString()}</p></div>
-      <div className="flex shrink-0 gap-2"><Link to={`/cases/${item.id}`} className="secondary-button text-xs"><ExternalLink size={15}/> Open</Link><button type="button" onClick={onDelete} disabled={deleting} className="danger-button text-xs"><Trash2 size={15}/>{deleting ? 'Deleting…' : 'Delete'}</button></div>
+      <div className="flex shrink-0 flex-wrap gap-2"><button type="button" onClick={onGenerate} disabled={!reelReady || generating || queued} title={reelReady ? undefined : 'The case must be public, active, and fully researched'} className="primary-button w-auto px-4 text-xs"><Youtube size={15}/>{generating ? 'Starting…' : queued ? 'Queued' : reelReady ? 'Create Short' : 'Not ready'}</button><Link to={`/cases/${item.id}`} className="secondary-button text-xs"><ExternalLink size={15}/> Open</Link><button type="button" onClick={onDelete} disabled={deleting} className="danger-button text-xs"><Trash2 size={15}/>{deleting ? 'Deleting…' : 'Delete'}</button></div>
     </div>
   </article>
 }

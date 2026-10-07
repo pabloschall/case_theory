@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     reel_video_poll_seconds: int = Field(default=15, ge=5, le=60)
     reel_video_timeout_seconds: int = Field(default=900, ge=60, le=1800)
     reel_video_fallback_to_image: bool = True
+    reel_job_project_id: str = ""
+    reel_job_location: str = "us-central1"
+    reel_job_name: str = ""
     youtube_client_id: str = ""
     youtube_client_secret: str = ""
     youtube_refresh_token: str = ""

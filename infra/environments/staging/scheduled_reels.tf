@@ -130,6 +130,16 @@ resource "google_cloud_run_v2_job_iam_member" "scheduled_reel_invoker" {
   member   = "serviceAccount:${google_service_account.scheduled_reel_invoker[0].email}"
 }
 
+resource "google_cloud_run_v2_job_iam_member" "scheduled_reel_api_invoker" {
+  count = var.enable_scheduled_reels ? 1 : 0
+
+  project  = var.project_id
+  location = google_cloud_run_v2_job.scheduled_reel[0].location
+  name     = google_cloud_run_v2_job.scheduled_reel[0].name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${module.identities.service_account_emails.api}"
+}
+
 resource "google_cloud_scheduler_job" "scheduled_reel" {
   count = var.enable_scheduled_reels ? 1 : 0
 

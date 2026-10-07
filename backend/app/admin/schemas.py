@@ -74,3 +74,8 @@ class AdminCasePage(BaseModel):
     total_pages: int
     has_next: bool
     has_previous: bool
+
+
+class AdminReelJobRead(BaseModel):
+    operation_name: str
+    status: Literal["queued"] = "queued"

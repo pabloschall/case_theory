@@ -9,7 +9,7 @@ from app.admin.models import AuditLog
 from app.admin.schemas import AdminCaseRead, AdminUserCreate, AdminUserRead
 from app.auth.models import RefreshSession
 from app.auth.security import hash_password
-from app.cases.models import Case
+from app.cases.models import Case, CaseSummary, Source
 from app.common.errors import AppError
 from app.common.timestamps import utc_now
 from app.evidence.models import Evidence
@@ -295,6 +295,41 @@ class AdminService:
         await self.db.delete(case)
         await self.db.commit()
         return object_keys
+
+    async def require_reel_eligible_case(self, case_id: uuid.UUID) -> Case:
+        case = await self.db.get(Case, case_id)
+        if case is None:
+            raise AppError(404, "case_not_found", "Case was not found")
+        if case.privacy != "public" or case.status != "active" or case.ai_research_status != "complete":
+            raise AppError(
+                422,
+                "case_not_reel_ready",
+                "The case must be public, active, and fully researched before creating a YouTube Short",
+            )
+        has_summary = await self.db.scalar(
+            select(CaseSummary.id).where(CaseSummary.case_id == case_id, CaseSummary.is_current.is_(True))
+        )
+        has_source = await self.db.scalar(select(Source.id).where(Source.case_id == case_id).limit(1))
+        if has_summary is None or has_source is None:
+            raise AppError(
+                422,
+                "case_not_reel_ready",
+                "The case needs a current overview and at least one source before creating a YouTube Short",
+            )
+        return case
+
+    async def record_reel_request(self, case: Case, actor: User, operation_name: str) -> None:
+        self.db.add(
+            AuditLog(
+                actor_user_id=actor.id,
+                action="case.youtube_short_requested",
+                resource_type="case",
+                resource_id=case.id,
+                before_snapshot=None,
+                after_snapshot={"operation_name": operation_name},
+            )
+        )
+        await self.db.commit()
 
     async def _subscriptions(
         self, user_ids: list[uuid.UUID]

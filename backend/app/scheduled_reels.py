@@ -8,6 +8,7 @@ import json
 import re
 import tempfile
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -556,21 +557,28 @@ class YouTubeUploader:
             return video_id
 
 
-async def select_case(db: AsyncSession) -> tuple[Case, CaseSummary, list[Source]] | None:
+async def select_case(
+    db: AsyncSession,
+    case_id: uuid.UUID | None = None,
+) -> tuple[Case, CaseSummary, list[Source]] | None:
     already_used = exists(select(ReelDraft.id).where(ReelDraft.case_id == Case.id, ReelDraft.automated.is_(True)))
     has_sources = exists(select(Source.id).where(Source.case_id == Case.id))
+    eligibility = [
+        Case.privacy == "public",
+        Case.status == "active",
+        Case.ai_research_status == "complete",
+        CaseSummary.is_current.is_(True),
+        has_sources,
+    ]
+    if case_id is None:
+        eligibility.append(~already_used)
+    else:
+        eligibility.append(Case.id == case_id)
     row = (
         await db.execute(
             select(Case, CaseSummary)
             .join(CaseSummary, CaseSummary.case_id == Case.id)
-            .where(
-                Case.privacy == "public",
-                Case.status == "active",
-                Case.ai_research_status == "complete",
-                CaseSummary.is_current.is_(True),
-                ~already_used,
-                has_sources,
-            )
+            .where(*eligibility)
             .order_by(Case.view_count.desc(), Case.created_at.desc())
             .limit(1)
         )
@@ -620,8 +628,16 @@ async def generate_script(
     return script
 
 
-async def run(*, dry_run: bool = False, skip_upload: bool = False, force_new: bool = False) -> None:
+async def run(
+    *,
+    dry_run: bool = False,
+    skip_upload: bool = False,
+    force_new: bool = False,
+    case_id: uuid.UUID | None = None,
+) -> None:
     settings = get_settings()
+    if case_id is not None and not force_new:
+        raise RuntimeError("A specific case requires --force-new")
     if not settings.openai_api_key:
         raise RuntimeError("OPENAI_API_KEY is required for scheduled reels")
     if not dry_run and not skip_upload and not YouTubeUploader(settings).configured():
@@ -669,7 +685,7 @@ async def run(*, dry_run: bool = False, skip_upload: bool = False, force_new: bo
                 await db.commit()
                 logger.info("scheduled_reel_resuming", slot=slot, reel_id=str(item.id))
             else:
-                selected = await select_case(db)
+                selected = await select_case(db, case_id)
                 if selected is None:
                     logger.info("scheduled_reel_no_eligible_case", slot=slot)
                     return
@@ -800,12 +816,14 @@ def main() -> None:
         action="store_true",
         help="Use a unique manual slot instead of the current scheduled slot",
     )
+    parser.add_argument("--case-id", type=uuid.UUID, help="Generate the Short for this eligible case")
     arguments = parser.parse_args()
     asyncio.run(
         run(
             dry_run=arguments.dry_run,
             skip_upload=arguments.skip_upload,
             force_new=arguments.force_new,
+            case_id=arguments.case_id,
         )
     )
 

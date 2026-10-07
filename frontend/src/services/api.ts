@@ -174,6 +174,7 @@ export const api = {
     return request<AdminCasePage>(`/admin/cases?${params.toString()}`)
   },
   deleteCase: (id: string) => request<{ message: string }>(`/admin/cases/${id}`, { method: 'DELETE' }),
+  createCaseYoutubeShort: (id: string) => request<{ operation_name: string; status: 'queued' }>(`/admin/cases/${id}/youtube-short`, { method: 'POST' }),
   fbiCases: (params: { page: number; q?: string; field_office?: string; classification?: string; status?: string }) => {
     const search = new URLSearchParams({ page: String(params.page) })
     if (params.q) search.set('q', params.q)
