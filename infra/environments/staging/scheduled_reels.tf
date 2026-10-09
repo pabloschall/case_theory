@@ -146,8 +146,8 @@ resource "google_cloud_scheduler_job" "scheduled_reel" {
   project          = var.project_id
   region           = var.region
   name             = "${local.name_prefix}-youtube-short"
-  description      = "Generate and publish one sourced YouTube Short twice daily"
-  schedule         = "0 4,16 * * *"
+  description      = "Generate and publish one sourced YouTube Short nightly"
+  schedule         = "0 4 * * *"
   time_zone        = "Etc/UTC"
   attempt_deadline = "320s"
 
