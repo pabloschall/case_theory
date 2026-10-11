@@ -13,6 +13,7 @@ locals {
     REEL_VIDEO_LOCATION          = var.region
     REEL_VIDEO_MODEL             = "veo-3.1-fast-generate-001"
     REEL_VIDEO_DURATION_SECONDS  = "8"
+    REEL_VIDEO_PERSON_GENERATION = "allow_adult"
     REEL_VIDEO_FALLBACK_TO_IMAGE = "true"
     YOUTUBE_PRIVACY_STATUS       = "public"
   }

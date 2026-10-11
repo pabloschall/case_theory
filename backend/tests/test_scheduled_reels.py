@@ -10,10 +10,12 @@ import pytest
 from app.config.settings import Settings
 from app.scheduled_reels import (
     SceneVisual,
+    VeoSafetyFilteredError,
     VertexVeoGenerator,
     YouTubeUploader,
     build_scene_metadata,
     build_srt,
+    build_veo_safety_retry_prompt,
     build_youtube_description,
     case_hashtags,
     fit_narration_duration,
@@ -151,6 +153,7 @@ def test_vertex_veo_generator_requests_a_silent_portrait_clip() -> None:
     assert calls[0]["config"]["aspect_ratio"] == "9:16"
     assert calls[0]["config"]["duration_seconds"] == 8
     assert calls[0]["config"]["generate_audio"] is False
+    assert calls[0]["config"]["person_generation"] == "allow_adult"
 
 
 def test_reel_video_duration_parses_cloud_run_environment_value(
@@ -239,6 +242,40 @@ async def test_scene_visuals_use_vertex_veo(monkeypatch: pytest.MonkeyPatch) -> 
         SceneVisual(b"video:scene one", "video"),
         SceneVisual(b"video:scene two", "video"),
     ]
+
+
+def test_veo_safety_retry_prompt_requires_an_empty_symbolic_scene() -> None:
+    prompt = build_veo_safety_retry_prompt("A witness enters a house at dusk")
+
+    assert "only an empty environment and neutral inanimate objects" in prompt
+    assert "Do not show people, faces" in prompt
+    assert "A witness enters a house at dusk" in prompt
+
+
+@pytest.mark.asyncio
+async def test_scene_visuals_retry_safety_filtered_veo_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prompts: list[str] = []
+
+    class FakeVeoGenerator:
+        def __init__(self, _: Settings) -> None:
+            pass
+
+        async def generate(self, prompt: str) -> bytes:
+            prompts.append(prompt)
+            if len(prompts) == 1:
+                raise VeoSafetyFilteredError("people/face generation filtered")
+            return b"safe-video"
+
+    monkeypatch.setattr("app.scheduled_reels.VertexVeoGenerator", FakeVeoGenerator)
+    settings = Settings(_env_file=None, reel_visual_provider="vertex_veo")
+
+    visuals = await generate_scene_visuals(cast(Any, object()), settings, ["A person at a doorway"])
+
+    assert visuals == [SceneVisual(b"safe-video", "video")]
+    assert prompts[0] == "A person at a doorway"
+    assert "Do not show people, faces" in prompts[1]
 
 
 class FakeResponse:

@@ -22,7 +22,12 @@ YOUTUBE_REDIRECT_URI=http://localhost:8000/api/v1/integrations/youtube/callback
 YOUTUBE_PRIVACY_STATUS=public
 REEL_SITE_LABEL=case-researcher.com
 REEL_MUSIC_VOLUME=0.10
+REEL_VIDEO_PERSON_GENERATION=allow_adult
 ```
+
+`REEL_VIDEO_PERSON_GENERATION=allow_adult` lets Veo render adults and faces. The script and negative prompt still
+prohibit identifiable recreations of real case participants. If Veo filters a scene, the job retries it as an empty,
+object-based reconstruction before falling back to a generated still image.
 
 The Google OAuth grant must include `https://www.googleapis.com/auth/youtube.upload` for publishing and `https://www.googleapis.com/auth/youtube.readonly` for verifying the destination channel. YouTube may restrict uploads from an unaudited API project to private visibility until the project passes its compliance audit.
 

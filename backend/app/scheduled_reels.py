@@ -53,6 +53,21 @@ class SceneVisual:
     kind: Literal["image", "video"]
 
 
+class VeoSafetyFilteredError(RuntimeError):
+    """Veo completed the request but filtered every generated video."""
+
+
+def build_veo_safety_retry_prompt(prompt: str) -> str:
+    return (
+        "Create a cinematic portrait documentary shot using only an empty environment and neutral inanimate "
+        "objects from the scene concept below. Do not show people, faces, human silhouettes, body parts, "
+        "photographs of people, injuries, blood, violence, or weapons. If the concept mentions a person or an "
+        "action involving a person, communicate it symbolically through the location, lighting, weather, and "
+        "relevant unattended objects. Use restrained camera movement. Include no readable text, logos, captions, "
+        f"or watermarks.\n\nScene concept:\n{prompt}"
+    )
+
+
 class GeneratedReelScene(BaseModel):
     narration_text: str = Field(min_length=20, max_length=500)
     on_screen_text: str = Field(min_length=2, max_length=90)
@@ -448,7 +463,7 @@ class VertexVeoGenerator:
                 duration_seconds=self.settings.reel_video_duration_seconds,
                 generate_audio=False,
                 number_of_videos=1,
-                person_generation="dont_allow",
+                person_generation=self.settings.reel_video_person_generation,
                 resolution="720p",
                 negative_prompt=VEO_NEGATIVE_PROMPT,
             ),
@@ -466,7 +481,9 @@ class VertexVeoGenerator:
         if not video_bytes:
             reasons = result.rai_media_filtered_reasons if result is not None else None
             detail = f": {'; '.join(reasons)}" if reasons else ""
-            raise RuntimeError(f"Vertex Veo returned no video{detail}")
+            if reasons:
+                raise VeoSafetyFilteredError(f"Vertex Veo returned no video{detail}")
+            raise RuntimeError("Vertex Veo returned no video")
         return cast(bytes, video_bytes)
 
     async def generate(self, prompt: str) -> bytes:
@@ -500,7 +517,15 @@ async def generate_scene_visuals(
     visuals: list[SceneVisual] = []
     for scene_number, prompt in enumerate(prompts, start=1):
         try:
-            content = await generator.generate(prompt)
+            try:
+                content = await generator.generate(prompt)
+            except VeoSafetyFilteredError as exc:
+                logger.warning(
+                    "scheduled_reel_veo_safety_retry",
+                    scene_number=scene_number,
+                    reason=str(exc),
+                )
+                content = await generator.generate(build_veo_safety_retry_prompt(prompt))
             visuals.append(SceneVisual(content, "video"))
         except Exception:
             if not settings.reel_video_fallback_to_image:

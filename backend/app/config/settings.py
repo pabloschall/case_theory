@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     reel_video_location: str = "us-central1"
     reel_video_model: str = "veo-3.1-fast-generate-001"
     reel_video_duration_seconds: Literal[4, 6, 8] = 8
+    reel_video_person_generation: Literal["dont_allow", "allow_adult"] = "allow_adult"
     reel_video_poll_seconds: int = Field(default=15, ge=5, le=60)
     reel_video_timeout_seconds: int = Field(default=900, ge=60, le=1800)
     reel_video_fallback_to_image: bool = True
