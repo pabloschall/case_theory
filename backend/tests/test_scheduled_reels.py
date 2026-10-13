@@ -336,3 +336,44 @@ async def test_youtube_uploader_refreshes_token_and_uses_resumable_upload(
     metadata = FakeAsyncClient.calls[1][2]["content"]
     assert '"privacyStatus": "public"' in metadata
     assert FakeAsyncClient.calls[2][1] == "https://upload.example/session"
+
+
+@pytest.mark.asyncio
+async def test_youtube_uploader_explains_an_expired_refresh_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ExpiredTokenClient:
+        def __init__(self, **_: Any) -> None:
+            pass
+
+        async def __aenter__(self) -> "ExpiredTokenClient":
+            return self
+
+        async def __aexit__(self, *_: object) -> None:
+            return None
+
+        async def post(self, url: str, **_: Any) -> httpx.Response:
+            request = httpx.Request("POST", url)
+            return httpx.Response(
+                400,
+                request=request,
+                json={
+                    "error": "invalid_grant",
+                    "error_description": "Token has been expired or revoked.",
+                },
+            )
+
+    monkeypatch.setattr(httpx, "AsyncClient", ExpiredTokenClient)
+    settings = Settings(
+        _env_file=None,
+        youtube_client_id="client",
+        youtube_client_secret="secret",
+        youtube_refresh_token="expired-refresh-token",
+    )
+
+    with pytest.raises(RuntimeError, match="invalid_grant.*expired or revoked.*In production"):
+        await YouTubeUploader(settings).upload(
+            b"video-bytes",
+            title="A sourced short",
+            description="Documented case summary",
+        )

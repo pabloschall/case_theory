@@ -33,6 +33,11 @@ The Google OAuth grant must include `https://www.googleapis.com/auth/youtube.upl
 
 After configuring the client ID, client secret, and redirect URI, sign in to the application as an administrator and open `/api/v1/integrations/youtube/connect`. Approve access using the Google account that owns the destination channel. The callback verifies and displays the authorized channel, then displays the refresh token and stable channel ID once while preventing the response from being cached. Confirm the channel is `@CaseResearcher`, then store both values in `.env` locally and in the production secret store; do not commit them.
 
+Before issuing the production refresh token, set the Google OAuth app's publishing status to **In production**.
+Refresh tokens from an external app in **Testing** expire after seven days when the app requests YouTube scopes.
+After changing the publishing status, complete the authorization flow again and replace the old refresh token in the
+production secret store. Existing testing-mode tokens do not become permanent automatically.
+
 ## Local verification
 
 These commands use the backend container, which includes FFmpeg:

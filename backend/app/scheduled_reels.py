@@ -561,7 +561,30 @@ class YouTubeUploader:
                     "grant_type": "refresh_token",
                 },
             )
-            token_response.raise_for_status()
+            try:
+                token_response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                error_code = "unknown_error"
+                error_description = "Google rejected the refresh token request"
+                try:
+                    payload = token_response.json()
+                    if isinstance(payload, dict):
+                        if isinstance(payload.get("error"), str):
+                            error_code = payload["error"]
+                        if isinstance(payload.get("error_description"), str):
+                            error_description = payload["error_description"]
+                except ValueError:
+                    pass
+                remediation = ""
+                if error_code == "invalid_grant":
+                    remediation = (
+                        " Set the Google OAuth app publishing status to In production, authorize the "
+                        "@CaseResearcher channel again, and replace YOUTUBE_REFRESH_TOKEN."
+                    )
+                raise RuntimeError(
+                    f"YouTube OAuth token refresh failed ({error_code}): "
+                    f"{error_description}.{remediation}"
+                ) from exc
             access_token = token_response.json()["access_token"]
             if self.settings.youtube_channel_id:
                 try:
