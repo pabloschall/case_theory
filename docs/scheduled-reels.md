@@ -31,6 +31,10 @@ object-based reconstruction before falling back to a generated still image.
 
 The Google OAuth grant must include `https://www.googleapis.com/auth/youtube.upload` for publishing and `https://www.googleapis.com/auth/youtube.readonly` for verifying the destination channel. YouTube may restrict uploads from an unaudited API project to private visibility until the project passes its compliance audit.
 
+The deployed API must receive `YOUTUBE_CLIENT_ID` and `YOUTUBE_CLIENT_SECRET` from Secret Manager and use
+`YOUTUBE_REDIRECT_URI=https://case-researcher.com/api/v1/integrations/youtube/callback`. Add that exact HTTPS URI
+to the web OAuth client's authorized redirect URIs in Google Cloud.
+
 After configuring the client ID, client secret, and redirect URI, sign in to the application as an administrator and open `/api/v1/integrations/youtube/connect`. Approve access using the Google account that owns the destination channel. The callback verifies and displays the authorized channel, then displays the refresh token and stable channel ID once while preventing the response from being cached. Confirm the channel is `@CaseResearcher`, then store both values in `.env` locally and in the production secret store; do not commit them.
 
 Before issuing the production refresh token, set the Google OAuth app's publishing status to **In production**.

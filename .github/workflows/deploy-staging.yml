@@ -75,6 +75,7 @@ jobs:
           required_secrets=(
             secret-key database-url openai-api-key mailgun-api-key
             mailgun-base-url mailgun-from-email fbi-api-key
+            youtube-client-id youtube-client-secret
           )
           for secret in "${required_secrets[@]}"; do
             version="$(gcloud secrets versions list "$secret" \
@@ -163,6 +164,7 @@ jobs:
           REEL_JOB_PROJECT_ID: "$PROJECT_ID"
           REEL_JOB_LOCATION: "$REGION"
           REEL_JOB_NAME: "case-theory-stg-youtube-short"
+          YOUTUBE_REDIRECT_URI: "https://case-researcher.com/api/v1/integrations/youtube/callback"
           EOF
 
       - name: Deploy API revision
@@ -176,7 +178,7 @@ jobs:
             --subnet="$VPC_SUBNET" \
             --vpc-egress=private-ranges-only \
             --env-vars-file=runtime.env.yaml \
-            --set-secrets=SECRET_KEY=secret-key:latest,DATABASE_URL=database-url:latest,OPENAI_API_KEY=openai-api-key:latest,MAILGUN_API_KEY=mailgun-api-key:latest,MAILGUN_BASE_URL=mailgun-base-url:latest,MAILGUN_FROM_EMAIL=mailgun-from-email:latest,FBI_API_KEY=fbi-api-key:latest \
+            --set-secrets=SECRET_KEY=secret-key:latest,DATABASE_URL=database-url:latest,OPENAI_API_KEY=openai-api-key:latest,MAILGUN_API_KEY=mailgun-api-key:latest,MAILGUN_BASE_URL=mailgun-base-url:latest,MAILGUN_FROM_EMAIL=mailgun-from-email:latest,FBI_API_KEY=fbi-api-key:latest,YOUTUBE_CLIENT_ID=youtube-client-id:latest,YOUTUBE_CLIENT_SECRET=youtube-client-secret:latest \
             --allow-unauthenticated \
             --quiet
 
