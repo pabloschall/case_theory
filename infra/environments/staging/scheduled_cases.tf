@@ -1,16 +1,16 @@
 locals {
   scheduled_case_lanes = var.enable_scheduled_cases ? {
     recent = {
-      schedule = "0 1 * * *"
-      cadence  = "daily"
+      schedule = "0 1 * * 1"
+      cadence  = "weekly"
     }
     historical = {
-      schedule = "0 2 * * *"
-      cadence  = "daily"
+      schedule = "0 2 * * 1"
+      cadence  = "weekly"
     }
     paranormal = {
-      schedule = "0 3 * * *"
-      cadence  = "daily"
+      schedule = "0 3 * * 1"
+      cadence  = "weekly"
     }
   } : {}
 

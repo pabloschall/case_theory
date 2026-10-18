@@ -78,7 +78,7 @@ AI-generated case banners also use the configured storage provider. They are sto
 
 ## Automated YouTube Shorts
 
-Paid investigators can ask the case Researcher to create a 15–60 second reel draft for review. A separate production job runs twice daily, selects an eligible sourced public case, generates a neutral script, AI narration, and symbolic portrait backgrounds, renders a vertical MP4 ending with `case-researcher.com`, stores it, and uploads it through YouTube's resumable API. See [docs/scheduled-reels.md](docs/scheduled-reels.md) for credentials, local commands, scheduling, and activation.
+Paid investigators can ask the case Researcher to create a 15–60 second reel draft for review. A separate production job runs once per week on Monday at 04:00 UTC, selects an eligible sourced public case, generates a neutral script, AI narration, and symbolic portrait backgrounds, renders a vertical MP4 ending with `case-researcher.com`, stores it, and uploads it through YouTube's resumable API. See [docs/scheduled-reels.md](docs/scheduled-reels.md) for credentials, local commands, scheduling, and activation.
 
 ## FBI case discovery and import
 

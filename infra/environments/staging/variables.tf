@@ -75,7 +75,7 @@ variable "scheduled_cases_backend_image" {
 }
 
 variable "enable_scheduled_reels" {
-  description = "Create the twice-daily YouTube Short generation job after OAuth secrets are ready."
+  description = "Create the weekly YouTube Short generation job after OAuth secrets are ready."
   type        = bool
   default     = false
 }

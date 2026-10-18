@@ -260,6 +260,8 @@ flowchart TB
 
 Cloud Run instances remain stateless. Cloud SQL owns relational state, Memorystore handles cache/rate limits/ephemeral realtime fan-out, GCS owns binary objects, and Pub/Sub carries durable domain events. Cloud Tasks handles controlled retries and scheduled HTTP work. Domain event and provider ports keep these services outside core domain logic.
 
+The scheduled content jobs run once per week on Monday in UTC. Cloud Scheduler invokes the recent-case Cloud Run Job at 01:00 (`0 1 * * 1`), historical cases at 02:00 (`0 2 * * 1`), paranormal cases at 03:00 (`0 3 * * 1`), and YouTube Shorts at 04:00 (`0 4 * * 1`). Terraform defines these schedules in `infra/environments/staging/scheduled_cases.tf` and `scheduled_reels.tf`. See [scheduled cases](docs/scheduled-cases.md) and [scheduled reels](docs/scheduled-reels.md) for activation and retry behavior.
+
 ## Implementation phases
 
 1. **Foundation:** monorepo, containers, database, Redis, FastAPI, React, auth sessions, plans and permission service, migrations, responsive shell, tests and operational docs.
